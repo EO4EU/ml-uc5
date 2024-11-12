@@ -19,7 +19,7 @@ default_context:
   include_role_binding: "yes"
   include_service_account: "yes"
   include_virtual_service: "yes"
-  virtual_service_cluster_domain: "ecmwf-inference-server"
+  virtual_service_cluster_domain: "cineca-inference-server"
   virtual_service_container_port: "80"
   include_external_s3_secret: "yes"  
   external_s3_secret_endpoint: "s3.waw3-2.cloudferro.com:443"
