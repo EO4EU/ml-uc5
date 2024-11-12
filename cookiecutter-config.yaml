@@ -1,8 +1,9 @@
 default_context:
   chart_name: "uc5"
-  chart_version: "0.1.1"
+  chart_version: "0.1.2"
   need_dep_chart: "no"
   include_service: "yes"
+  service_name: "cfactor"
   service_image_repo: "registry.apps.eo4eu.eu/eo4eu/eo4eu-cicd/eo4eu-inference-server/uc5/eo4eu-cfactor"
   service_image_tag: "aa0b3bb18ebe9c8c6e6d073fa479fc6d51f13d91"
   service_image_pull_policy: "Always"
