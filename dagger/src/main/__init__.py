@@ -316,7 +316,7 @@ class Uc5:
                     f"{endpoint}",
                     "s3",
                     "rm",
-                    f"s3://{bucket}",
+                    f"s3://{bucket}/docker",
                     "--recursive"
                 ]
             )
