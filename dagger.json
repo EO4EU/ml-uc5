@@ -1,0 +1,12 @@
+{
+  "name": "uc6",
+  "sdk": "python",
+  "dependencies": [
+    {
+      "name": "trivy",
+      "source": "github.com/jpadams/daggerverse/trivy@9890b76992bf840bad7b36625b9e45df31fadde9"
+    }
+  ],
+  "source": "dagger",
+  "engineVersion": "v0.13.3"
+}

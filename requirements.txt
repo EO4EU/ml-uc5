@@ -1,0 +1,13 @@
+Flask
+kubernetes
+cloudpathlib[s3]
+numpy
+opencv-python
+rasterio
+tritonclient[all]
+kafka-python
+aioboto3
+aiofiles
+aiomonitor
+Werkzeug
+pandas

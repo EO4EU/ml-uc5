@@ -1,0 +1,53 @@
+default_context:
+  chart_name: "uc5"
+  chart_version: "0.1.0"
+  need_dep_chart: "no"
+  include_service: "yes"
+  service_image_repo: "registry.apps.eo4eu.eu/eo4eu/eo4eu-cicd/eo4eu-inference-server/uc5/eo4eu-cfactor"
+  service_image_tag: "latest"
+  service_image_pull_policy: "Always"
+  service_image_secret: "uc5-registry"
+  service_container_port: "8080"
+  service_request_cpu: "100m"
+  service_request_memory: "4G"
+  service_limit_cpu: "1"
+  service_limit_memory: "16G"
+  include_inference_service: "yes"
+  inference_service_storage_uri: "s3://inference-server-bucket/UC5/default"
+  include_namespace: "yes"
+  include_role: "yes"
+  include_role_binding: "yes"
+  include_service_account: "yes"
+  include_virtual_service: "yes"
+  virtual_service_cluster_domain: "ecmwf-inference-server"
+  virtual_service_container_port: "80"
+  include_external_s3_secret: "yes"  
+  external_s3_secret_endpoint: "s3.waw3-2.cloudferro.com:443"
+  external_s3_secret_region: "us-east-1"
+  external_s3_secret_anon_credential: "false"
+  external_s3_secret_https: "1"
+  k8s_s3_secret_name: "s3creds"
+  external_s3_secret_data:
+    "data": [
+      {
+        secret_key: "AWS_ACCESS_KEY_ID",
+        vault_secret_key: "s3_cloudferro_creds/inference_server",
+        vault_secret_property: "s3_access_key"
+      },
+      {
+        secret_key: "AWS_SECRET_ACCESS_KEY",
+        vault_secret_key: "s3_cloudferro_creds/inference_server",
+        vault_secret_property: "s3_secret_key"
+      }
+    ]
+  include_external_registry_secret: "yes"
+  external_registry_secret_name: "uc5-registry"
+  k8s_registry_secret_name: "uc5-registry"
+  external_registry_secret_data:
+    "data": [
+      {
+        secret_key: "dockerconfigjson",
+        vault_secret_key: "registry_pull_secret/inference_server/uc5",
+        vault_secret_property: ".dockerconfigjson"
+      }
+    ]
