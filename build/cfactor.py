@@ -373,3 +373,4 @@ def create_app():
             app.logger.info('Inference done','inference_done')
             await triton_client.close()
       return app
+      
