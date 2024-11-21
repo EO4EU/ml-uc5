@@ -2,7 +2,7 @@
   image: mikebrown008/ci-cli-base:0.5
   variables:
     MINIO: minio.dev.wekeo.apps.eo4eu.eu
-    BUCKET: registry
+    BUCKET: registry-inference-server-uc5
     GITLAB: git.apps.eo4eu.eu
     REPO_NAMESPACE: eo4eu/eo4eu-cicd/eo4eu-inference-server
     HELM_NAMESPACE: eo4eu/eo4eu-cicd/cicd-infra
