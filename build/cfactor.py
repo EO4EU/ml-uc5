@@ -114,7 +114,6 @@ def create_app():
 
                   s3_path = json_data_request['S3_bucket_desc']['folder']
                   #s3_file = json_data_request['S3_bucket_desc'].get('filename',None)
-                  log_function = functools.partial(log,None)
 
                   def threadentry():
                         app.logger.info('All json data read', extra={'logName': 'json_data_read'})
