@@ -130,7 +130,6 @@ def create_app():
                         app.logger.info("path is s3://"+s3_bucket_output+'/result-uc5-cfactor/', extra={'logName': 'path_output'})
 
                         with cpOutput.joinpath('log.txt').open('w') as fileOutput:
-                              log_function = functools.partial(log,fileOutput)
                               def read_data(folder):
                                     log_function('Opening folder '+str(folder))
                                     with folder.open('rb') as fileBand, rasterio.io.MemoryFile(fileBand) as memfile:
