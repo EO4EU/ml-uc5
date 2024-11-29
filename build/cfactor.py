@@ -131,7 +131,7 @@ def create_app():
 
                         with cpOutput.joinpath('log.txt').open('w') as fileOutput:
                               def read_data(folder):
-                                    log_function('Opening folder '+str(folder))
+                                    app.logger.info('Opening folder '+str(folder), extra={'logName': 'opening_folder'})
                                     with folder.open('rb') as fileBand, rasterio.io.MemoryFile(fileBand) as memfile:
                                           with memfile.open(driver="GTiff",sharing=False) as band_file:
                                                 meta=band_file.meta
@@ -189,7 +189,7 @@ def create_app():
                                                 toInfer.append(dic)
                                     app.logger.info('start inference', extra={'logName': 'start_inference'})
                                     app.logger.info('length '+str(len(toInfer)), extra={'logName': 'length'})
-                                    asyncio.run(doInference(toInfer,log_function))
+                                    asyncio.run(doInference(toInfer))
                                     app.logger.info('inference done', extra={'logName': 'inference_done'})
                                     for requestElem in toInfer:
                                           result_subarray=requestElem["result"]
@@ -278,7 +278,7 @@ def create_app():
       # The result will be a json with the following fields:
       # model_name : The name of the model used.
       # outputs : The result of the inference.
-      async def doInference(toInfer,log_function):
+      async def doInference(toInfer):
 
             triton_client = httpclient.InferenceServerClient(url="default-inference.uc5.svc.ecmwf-inference-server.local", verbose=False,conn_timeout=10000000,conn_limit=None,ssl=False)
             nb_Created=0
