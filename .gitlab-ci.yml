@@ -4,15 +4,16 @@
     MINIO: minio.dev.wekeo.apps.eo4eu.eu
     BUCKET: registry-inference-server-uc5
     GITLAB: git.apps.eo4eu.eu
-    REPO_NAMESPACE: eo4eu/eo4eu-cicd/eo4eu-inference-server
+    REPO_NAMESPACE: eo4eu/eo4eu-inference-server
     HELM_NAMESPACE: eo4eu/eo4eu-cicd/cicd-infra
     REGISTRY: registry.apps.eo4eu.eu
     REPO: uc5
     APP: eo4eu-cfactor
-    SERVICE: inference-server
+    SERVICE: eo4eu-inference-server
     HELM: helm-repo
     REPO_BRANCH: main
     HELM_BRANCH: main
+    COOKIECUTTER_BRANCH: inference-server-uc
   before_script:
     - "apk --no-cache add jq"
     - "export VAULT_TOKEN=$(curl -s -X PUT \
@@ -21,10 +22,10 @@
       jq -r '.auth.client_token')"
     - "export BEARER=\"X-Vault-Token: $VAULT_TOKEN\""
     - "export CI_REPO_USERNAME=$(curl -s -H \"$BEARER\" \
-      \"$VAULT_SERVER_URL/v1/kv/data/gitlab_credentials/$SERVICE/$REPO\" | \
+      \"$VAULT_SERVER_URL/v1/kv/data/eo4eu-cicd/gitlab_credentials/$SERVICE/$REPO\" | \
       jq -r '.data.data.username')"
     - "export CI_REPO_PASSWORD=$(curl -s -H \"$BEARER\" \
-      \"$VAULT_SERVER_URL/v1/kv/data/gitlab_credentials/$SERVICE/$REPO\" | \
+      \"$VAULT_SERVER_URL/v1/kv/data/eo4eu-cicd/gitlab_credentials/$SERVICE/$REPO\" | \
       jq -r '.data.data.password')"
     - "export CI_COOKIECUTTER_USERNAME=$(curl -s -H \"$BEARER\" \
       \"$VAULT_SERVER_URL/v1/kv/data/gitlab_credentials/cookiecutter-repo\" | \
@@ -154,7 +155,7 @@ update_helm:
     - dagger call update
       --gitlab $GITLAB
       --repo $REPO
-      --branch $SERVICE-uc
+      --branch $COOKIECUTTER_BRANCH
       --username $CI_COOKIECUTTER_USERNAME
       --password env:CI_COOKIECUTTER_PASSWORD
       --wkd .

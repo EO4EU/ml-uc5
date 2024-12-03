@@ -5,7 +5,7 @@ default_context:
   need_dep_chart: "no"
   include_service: "yes"
   service_name: "cfactor"
-  service_image_repo: "registry.apps.eo4eu.eu/eo4eu/eo4eu-cicd/eo4eu-inference-server/uc5/eo4eu-cfactor"
+  service_image_repo: "registry.apps.eo4eu.eu/eo4eu/eo4eu-inference-server/uc5/eo4eu-cfactor"
   service_image_tag: "9665502656bd7c73764901bcc797d19aa5c5d391"
   service_image_pull_policy: "Always"
   service_image_secret: "uc5-registry"
@@ -52,7 +52,7 @@ default_context:
     "data": [
       {
         secret_key: "dockerconfigjson",
-        vault_secret_key: "registry_pull_secret/inference_server/uc5",
+        vault_secret_key: "eo4eu-cicd/registry_pull_secret/eo4eu-inference-server/uc5",
         vault_secret_property: ".dockerconfigjson"
       }
     ]
