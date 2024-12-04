@@ -22,7 +22,7 @@ default_context:
   include_role_binding: "yes"
   include_service_account: "yes"
   include_virtual_service: "yes"
-  virtual_service_cluster_domain: "ecmwf-inference-server"
+  virtual_service_cluster_domain: "cineca-inference-server"
   virtual_service_container_port: "80"
   virtual_service_gateway: "knative-serving/knative-ingress-gateway"
   include_sklearn_virtual_service: "no"
