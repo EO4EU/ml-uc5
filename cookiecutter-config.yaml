@@ -1,7 +1,7 @@
 default_context:
   chart_name: "uc5"
   chart_namespace: "uc5"
-  chart_version: "0.2.4"
+  chart_version: "0.2.5"
   need_dep_chart: "no"
   include_service: "yes"
   service_name: "cfactor"
@@ -14,6 +14,9 @@ default_context:
   service_request_memory: "4G"
   service_limit_cpu: "1"
   service_limit_memory: "16G"
+  service_environment_label: "production"
+  service_service_label: "UC5"
+  service_component_label: "cfactor"
   include_inference_service: "yes"
   inference_service_storage_uri: "s3://inference-server-bucket/UC5/default"
   include_sklearn_inference_service: "no"
