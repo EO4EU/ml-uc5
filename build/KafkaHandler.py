@@ -14,27 +14,33 @@ def get_current_pod_name():
 
 class DefaultContextFilter(logging.Filter):
     def filter(self, record):
-        if not hasattr(record, 'logName'):
-            record.logName = ''
+        if not hasattr(record, 'status'):
+            record.status = 'INFO'
+        if not hasattr(record, 'workflow_name'):
+            record.workflow_name = ''
+        if not hasattr(record, 'source'):
+            record.source = 'GenericUC5CFactor'
         return True
 
 class KafkaHandler(logging.Handler):
-    def __init__(self, level=logging.NOTSET,producer=None,source=''):
+    def __init__(self, level=logging.NOTSET,defaultproducer=None):
         super().__init__(level)
-        self.source=source
-        self.producer=producer
+        self.producer=defaultproducer
 
     def emit(self, record):
         message={}
-        message["source"]=self.source
-        message["name"]=record.logName
-        message["level"]=record.levelname
+        message["component_name"]=record.source
+        message["workflow_name"]=record.workflow_name
+        message["status"]=record.status
         message["description"]=record.msg
-        message["description_business"]=record.msg
         message["timestamp"]=record.created
         optional={}
         optional["namespace"]=get_current_namespace()
         optional["pod"]=get_current_pod_name()
         message["optional"]=optional
-        self.producer.send("monitoring.notify",key='key',value=message)
-        self.producer.flush()
+        if hasattr(record, 'producer'):
+            producer=record.producer
+        else:
+            producer=self.producer
+        producer.send("monitoring.notify",key='key',value=message)
+        producer.flush()
