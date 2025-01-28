@@ -273,6 +273,7 @@ def create_app():
                   response = make_response({
                   "msg": "There was a problem ignoring"
                   })
+            logger_workflow.info('workflow finished successfully',extra={'status':'SUCCESS'})
             return response
 
       # This function is used to do the inference on the data.

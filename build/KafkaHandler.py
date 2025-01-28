@@ -1,5 +1,6 @@
 import logging
 import os
+from datetime import datetime, timezone
 
 def get_current_namespace():
     try:
@@ -33,7 +34,9 @@ class KafkaHandler(logging.Handler):
         message["workflow_name"]=record.workflow_name
         message["status"]=record.status
         message["description"]=record.msg
-        message["timestamp"]=record.created
+        timestamp = record.created
+        dt = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+        message["timestamp"]=dt.isoformat()
         optional={}
         optional["namespace"]=get_current_namespace()
         optional["pod"]=get_current_pod_name()

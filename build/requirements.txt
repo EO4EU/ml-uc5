@@ -1,5 +1,6 @@
 Flask
 kubernetes
+boto3 ==1.35.93
 cloudpathlib[s3]
 numpy
 opencv-python
