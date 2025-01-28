@@ -1,4 +1,4 @@
-FROM python:3.12.2-bullseye
+FROM python:3.13.1-bookworm
 ENV FLASK_APP=cfactor.py
 RUN apt-get update && apt-get install ffmpeg libsm6 libxext6  -y
 COPY . /app
