@@ -1,5 +1,5 @@
 [project]
-name = "main"
+name = "uc-5"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = ["dagger-io"]
