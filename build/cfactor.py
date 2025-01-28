@@ -63,7 +63,7 @@ def create_app():
       app.logger.setLevel(logging.DEBUG)
 
       logger_app = logging.LoggerAdapter(app.logger, {'source': 'ML.uc5.cfactor'},merge_extra=True)
-      logger_app.info("Application Starting up...", extra={'status': 'INFO'})
+      logger_app.info("Application Starting up...", extra={'status': 'DEBUG'})
 
       # This is the entry point for the SSL model from Image to Feature service.
       # It will receive a message from the Kafka topic and then do the inference on the data.
@@ -99,13 +99,13 @@ def create_app():
                   api_response = api_instance.read_namespaced_config_map(configmap_name, configmap_namespace)
                   json_data_request = json.loads(request.data)
                   json_data_configmap =json.loads(str(api_response.data['jsonSuperviserRequest']))
-                  workflow_name = json_data_request.get('workflow_name', '')
+                  workflow_name = json_data_configmap.get('workflow_name', '')
                   bootstrapServers =api_response.data['bootstrapServers']
                   Producer=KafkaProducer(bootstrap_servers=bootstrapServers,value_serializer=lambda v: json.dumps(v).encode('utf-8'),key_serializer=str.encode)
                   logger_workflow = logging.LoggerAdapter(logger_app, {'workflow_name': workflow_name,'producer':Producer},merge_extra=True)
                   logger_workflow.info('Starting Workflow',extra={'status':'START'})
-                  logger_workflow.info('Reading json data request'+str(json_data_request), extra={'status': 'INFO'})
-                  logger_workflow.info('Reading json data configmap'+str(json_data_configmap), extra={'status': 'INFO'})
+                  logger_workflow.info('Reading json data request'+str(json_data_request), extra={'status': 'DEBUG'})
+                  logger_workflow.info('Reading json data configmap'+str(json_data_configmap), extra={'status': 'DEBUG'})
                   if not(json_data_request['previous_component_end'] == 'True' or json_data_request['previous_component_end']):
                         class PreviousComponentEndException(Exception):
                               pass
@@ -133,29 +133,29 @@ def create_app():
                               s3_path=s3_path[:-1]
                         cp = CloudPath("s3://"+s3_bucket_output+'/'+s3_path+'/', client=clientS3)
                         cpOutput = CloudPath("s3://"+s3_bucket_output+'/result-uc5-cfactor/')
-                        logger_workflow.info("path is s3://"+s3_bucket_output+'/result-uc5-cfactor/', extra={'status': 'INFO'})
+                        logger_workflow.info("path is s3://"+s3_bucket_output+'/result-uc5-cfactor/', extra={'status': 'DEBUG'})
 
                         with cpOutput.joinpath('log.txt').open('w') as fileOutput:
                               def read_data(folder):
-                                    logger_workflow.info('Opening folder '+str(folder), extra={'status': 'INFO'})
+                                    logger_workflow.info('Opening folder '+str(folder), extra={'status': 'DEBUG'})
                                     with folder.open('rb') as fileBand, rasterio.io.MemoryFile(fileBand) as memfile:
                                           with memfile.open(driver="GTiff",sharing=False) as band_file:
                                                 meta=band_file.meta
                                                 result=band_file.read().astype(np.float32)/10000.0
-                                                logger_workflow.info('Result obtained', extra={'status': 'INFO'})
+                                                logger_workflow.info('Result obtained', extra={'status': 'DEBUG'})
                                                 return result,meta
                               
                               to_treat={}
                               for folder in cp.iterdir():
                                     if folder.name.endswith('.tiff') or folder.name.endswith('.tif'):
                                           data=read_data(folder)
-                                          logger_workflow.info('datashape '+str(data[0].shape), extra={'status': 'INFO'})
+                                          logger_workflow.info('datashape '+str(data[0].shape), extra={'status': 'DEBUG'})
                                           to_treat[folder.name]=data
                               for key,(value,meta) in to_treat.items():
                                     shapeArray=value.shape
                                     xshape=shapeArray[1]
                                     yshape=shapeArray[2]
-                                    logger_workflow.info('shape '+str(xshape)+' '+str(yshape), extra={'status': 'INFO'})
+                                    logger_workflow.info('shape '+str(xshape)+' '+str(yshape), extra={'status': 'DEBUG'})
                                     resultArray=np.zeros([xshape,yshape],dtype=np.float32)
                                     count=np.zeros([xshape,yshape],dtype=np.float32)
 
@@ -205,7 +205,7 @@ def create_app():
                                           resultArray[i+0:i+9,j+0:j+9]=resultArray[i+0:i+9,j+0:j+9]+result_subarray
                                           count[i+0:i+9,j+0:j+9]=count[i+0:i+9,j+0:j+9]+1.0
 
-                                    logger_workflow.info('array all done', extra={'status': 'INFO'})
+                                    logger_workflow.info('array all done', extra={'status': 'DEBUG'})
                                     resultArray=resultArray/count
 
                                     transform=rasterio.transform.AffineTransformer(meta['transform'])
@@ -221,10 +221,10 @@ def create_app():
 
                                     df = pd.DataFrame(combined, columns=['x [m]', 'y [m]', 'cfactor'])
                                     outputPath=cpOutput.joinpath(key+'-cfactor-result.csv')
-                                    logger_workflow.info('csv writting', extra={'status': 'INFO'})
+                                    logger_workflow.info('csv writting', extra={'status': 'DEBUG'})
                                     with outputPath.open('w') as outputFile:
                                           df.to_csv(outputFile, index=False,header=True)
-                                    logger_workflow.info('csv writting done', extra={'status': 'INFO'})
+                                    logger_workflow.info('csv writting done', extra={'status': 'DEBUG'})
                                     jsonData={}
                                     jsonData['data']=resultArray.tolist()
                                     jsonData['shape']=resultArray.shape
@@ -233,25 +233,25 @@ def create_app():
                                     jsonData['metadata']=meta
 
                                     outputPath=cpOutput.joinpath(key+'-cfactor-result.json')
-                                    logger_workflow.info('start json writting', extra={'status': 'INFO'})
+                                    logger_workflow.info('start json writting', extra={'status': 'DEBUG'})
                                     with outputPath.open('w') as outputFile:
                                           json.dump(jsonData, outputFile)
-                                    logger_workflow.info('json writting done', extra={'status': 'INFO'})
+                                    logger_workflow.info('json writting done', extra={'status': 'DEBUG'})
                                     outputPath=cpOutput.joinpath(key+'-cfactor-result.tiff')
-                                    logger_workflow.info('start tiff writting', extra={'status': 'INFO'})
+                                    logger_workflow.info('start tiff writting', extra={'status': 'DEBUG'})
                                     with outputPath.open('wb') as outputFile, rasterio.io.MemoryFile() as memfile:
-                                          logger_workflow.info('height '+str(xshape)+' width '+str(yshape), extra={'status': 'INFO'})
-                                          logger_workflow.info('type height '+str(type(xshape))+' type width '+str(type(yshape)), extra={'status': 'INFO'})
-                                          logger_workflow.info('crs '+str(meta['crs']), extra={'status': 'INFO'})
+                                          logger_workflow.info('height '+str(xshape)+' width '+str(yshape), extra={'status': 'DEBUG'})
+                                          logger_workflow.info('type height '+str(type(xshape))+' type width '+str(type(yshape)), extra={'status': 'DEBUG'})
+                                          logger_workflow.info('crs '+str(meta['crs']), extra={'status': 'DEBUG'})
                                           with memfile.open(driver="GTiff",crs=meta['crs'],transform=meta['transform'],height=xshape,width=yshape,count=1,dtype=resultArray.dtype) as dst:
                                                 dst.write(resultArray,1)
                                                 dst.set_band_description(1,'cfactor, value between 0 and 1 indicating the risk of erosion')
                                                 dst.set_band_unit(1,'Unitless')
                                           outputFile.write(memfile.read())
-                                    logger_workflow.info('tiff writting done', extra={'status': 'INFO'})
+                                    logger_workflow.info('tiff writting done', extra={'status': 'DEBUG'})
                               
-                              logger_workflow.info('Output written', extra={'status': 'INFO'})
-                              logger_workflow.info('Connecting to Kafka', extra={'status': 'INFO'})
+                              logger_workflow.info('Output written', extra={'status': 'DEBUG'})
+                              logger_workflow.info('Connecting to Kafka', extra={'status': 'DEBUG'})
       
                               response_json ={
                               "previous_component_end": "True",
@@ -367,11 +367,11 @@ def create_app():
                   nb_Created+=1
                   if time.time()-last_shown>60:
                         last_shown=time.time()
-                        logger_workflow.info('done instance '+str(nb_done_instance)+'Inference done value '+str(nb_InferenceDone)+' postprocess done '+str(nb_Postprocess)+ ' created '+str(nb_Created), extra={'status': 'INFO'})
+                        logger_workflow.info('done instance '+str(nb_done_instance)+'Inference done value '+str(nb_InferenceDone)+' postprocess done '+str(nb_Postprocess)+ ' created '+str(nb_Created), extra={'status': 'DEBUG'})
             while nb_InferenceDone-nb_Created>0 or nb_Postprocess-nb_InferenceDone>0:
                   await asyncio.sleep(0)
             await asyncio.gather(*list_task,*list_postprocess)
-            logger_workflow.info('Inference done',extra={'status':'INFO'})
+            logger_workflow.info('Inference done',extra={'status':'DEBUG'})
             await triton_client.close()
       return app
       
