@@ -264,6 +264,7 @@ def create_app():
                                     Producer.flush()
                         except Exception as e:
                               logger_workflow.error('Got exception '+str(e)+'\n'+traceback.format_exc()+'\n'+'So we are ignoring the message', extra={'status': 'CRITICAL'})
+                              return
                         logger_workflow.info('workflow finished successfully',extra={'status':'SUCCESS'})
 
                   thread = threading.Thread(target=threadentry)
