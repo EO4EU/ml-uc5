@@ -248,6 +248,7 @@ def create_app():
                                                       dst.write(resultArray,1)
                                                       dst.set_band_description(1,'cfactor, value between 0 and 1 indicating the risk of erosion')
                                                       dst.set_band_unit(1,'Unitless')
+                                                      dst.update_tags(ns='GDAL_METADATA',description='cfactor, value between 0 and 1 indicating the risk of erosion')
                                                 outputFile.write(memfile.read())
                                           logger_workflow.info('tiff writting done', extra={'status': 'DEBUG'})
                                     
