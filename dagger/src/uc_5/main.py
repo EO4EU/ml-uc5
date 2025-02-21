@@ -15,7 +15,7 @@ class Uc5:
         """Start and return a registry service."""
         return (
             dag.container()
-            .from_("registry:2")
+            .from_("registry:2.8.2")
             .with_env_variable("REGISTRY_HTTP_ADDR", "0.0.0.0:80")
             .with_env_variable("REGISTRY_HTTP_SECRET", secretkey)
             .with_env_variable("REGISTRY_STORAGE", "s3")
