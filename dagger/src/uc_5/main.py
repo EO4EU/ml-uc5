@@ -15,7 +15,7 @@ class Uc5:
         """Start and return a registry service."""
         return (
             dag.container()
-            .from_("registry:2")
+            .from_("registry:2.8.2")
             .with_env_variable("REGISTRY_HTTP_ADDR", "0.0.0.0:80")
             .with_env_variable("REGISTRY_HTTP_SECRET", secretkey)
             .with_env_variable("REGISTRY_STORAGE", "s3")
@@ -230,7 +230,7 @@ class Uc5:
                 "registry.local",
                 self.registry(bucket, endpoint, accesskey, secretkey)
             )
-            .from_("rapidfort/skopeo-ib:latest")
+            .from_("rapidfort/skopeo-ib:v1.16.1")
             .with_file("/tmp/config.json", config.file("/tmp/config.json"), owner="1000:1000")
             .with_exec(
                 [
