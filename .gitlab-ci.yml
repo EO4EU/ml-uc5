@@ -17,6 +17,10 @@
     variables: 
       REPO_BRANCH: main
       HELM_BRANCH: main
+  - if: $CI_COMMIT_BRANCH == "dev"
+    variables: 
+      REPO_BRANCH: dev
+      HELM_BRANCH: dev
   - if: $CI_COMMIT_BRANCH == "backup"
     variables:
       REPO_BRANCH: backup
