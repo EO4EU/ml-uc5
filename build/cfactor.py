@@ -280,7 +280,7 @@ def create_app():
                               })
 
             except Exception as e:
-                  logger_workflow.error('Got exception '+str(e)+'\n'+traceback.format_exc()+'\n'+'So we are ignoring the message', extra={'status': 'CRITICAL'})
+                  app.logger.error('Got exception '+str(e)+'\n'+traceback.format_exc()+'\n'+'So we are ignoring the message', extra={'status': 'CRITICAL'})
                   # HTTP answer that the message is malformed. This message will then be discarded only the fact that a sucess return code is returned is important.
                   response = make_response({
                   "msg": "There was a problem ignoring"
