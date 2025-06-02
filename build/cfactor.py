@@ -80,6 +80,7 @@ def create_app():
             # TODO : Debugging message to remove in production.
             # Message received.
             response=None
+            app.logger.info('Received message for '+str(name))
             try:
                   config.load_incluster_config()
                   api_instance = client.CoreV1Api()
@@ -275,16 +276,17 @@ def create_app():
 
                   thread = threading.Thread(target=threadentry)
                   thread.start()
+                  app.logger.info('Thread started')
                   response = make_response({
                               "msg": "Started the process"
                               })
-
+                  app.logger.info('made response')
             except Exception as e:
                   app.logger.error('Got exception '+str(e)+'\n'+traceback.format_exc()+'\n'+'So we are ignoring the message', extra={'status': 'CRITICAL'})
                   # HTTP answer that the message is malformed. This message will then be discarded only the fact that a sucess return code is returned is important.
                   response = make_response({
                   "msg": "There was a problem ignoring"
-                  })
+                  },500)
             return response
 
       # This function is used to do the inference on the data.
