@@ -137,7 +137,6 @@ def create_app():
                               clientS3.set_as_default_client()
 
                               logger_workflow.info('Client is ready', extra={'status': 'DEBUG'})
-                              nonlocal s3_path
                               if s3_path.endswith('/'):
                                     s3_path=s3_path[:-1]
                               cp = CloudPath("s3://"+s3_bucket_output+'/'+s3_path+'/', client=clientS3)
