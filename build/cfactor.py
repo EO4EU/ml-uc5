@@ -77,6 +77,7 @@ def create_app():
 
       @app.route('/<name>', methods=['POST'])
       def cfactor(name):
+            time_start = time.time()
             # TODO : Debugging message to remove in production.
             # Message received.
             response=None
@@ -278,6 +279,7 @@ def create_app():
 
                   thread = threading.Thread(target=threadentry)
                   thread.start()
+                  app.logger.info('total time '+str(time.time()-time_start))
                   app.logger.info('Thread started')
                   response = make_response({
                               "msg": "Started the process"
