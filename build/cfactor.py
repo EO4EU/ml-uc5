@@ -82,14 +82,15 @@ def create_app():
             # TODO : Debugging message to remove in production.
             # Message received.
             try:
-                  def threadentry():
+                  raw_data = request.data
+                  def threadentry(raw_data):
                         app.logger.info('Received message for '+str(name))
                         config.load_incluster_config()
                         api_instance = client.CoreV1Api()
                         configmap_name = str(name)
                         configmap_namespace = 'uc5'
                         api_response = api_instance.read_namespaced_config_map(configmap_name, configmap_namespace)
-                        json_data_request = json.loads(request.data)
+                        json_data_request = json.loads(raw_data)
                         json_data_configmap =json.loads(str(api_response.data['jsonSuperviserRequest']))
                         workflow_name = json_data_configmap.get('workflow_name', '')
                         bootstrapServers =api_response.data['bootstrapServers']
@@ -275,7 +276,7 @@ def create_app():
                               return
                         logger_workflow.info('workflow finished successfully',extra={'status':'SUCCESS'})
 
-                  thread = threading.Thread(target=threadentry)
+                  thread = threading.Thread(target=threadentry, args=(raw_data,))
                   thread.start()
                   app.logger.info('total time '+str(time.time()-time_start))
                   app.logger.info('Thread started')
