@@ -78,34 +78,33 @@ def create_app():
       @app.route('/<name>', methods=['POST'])
       def cfactor(name):
             time_start = time.time()
+            response=None
             # TODO : Debugging message to remove in production.
             # Message received.
-            response=None
-            app.logger.info('Received message for '+str(name))
             try:
-                  config.load_incluster_config()
-                  api_instance = client.CoreV1Api()
-                  configmap_name = str(name)
-                  configmap_namespace = 'uc5'
-                  api_response = api_instance.read_namespaced_config_map(configmap_name, configmap_namespace)
-                  json_data_request = json.loads(request.data)
-                  json_data_configmap =json.loads(str(api_response.data['jsonSuperviserRequest']))
-                  workflow_name = json_data_configmap.get('workflow_name', '')
-                  bootstrapServers =api_response.data['bootstrapServers']
-                  component_name = json_data_configmap['ML']['component_name']
-                  
-
-                  kafka_out = json_data_configmap['Topics']["out"]
-                  s3_access_key = json_data_configmap['S3_bucket']['aws_access_key_id']
-                  s3_secret_key = json_data_configmap['S3_bucket']['aws_secret_access_key']
-                  s3_bucket_output = json_data_configmap['S3_bucket']['s3-bucket-name']
-                  s3_region = json_data_configmap['S3_bucket']['region_name']
-                  s3_region_endpoint = json_data_configmap['S3_bucket']['endpoint_url']
-
-                  s3_path = json_data_request['S3_bucket_desc']['folder']
-                  #s3_file = json_data_request['S3_bucket_desc'].get('filename',None)
-
                   def threadentry():
+                        app.logger.info('Received message for '+str(name))
+                        config.load_incluster_config()
+                        api_instance = client.CoreV1Api()
+                        configmap_name = str(name)
+                        configmap_namespace = 'uc5'
+                        api_response = api_instance.read_namespaced_config_map(configmap_name, configmap_namespace)
+                        json_data_request = json.loads(request.data)
+                        json_data_configmap =json.loads(str(api_response.data['jsonSuperviserRequest']))
+                        workflow_name = json_data_configmap.get('workflow_name', '')
+                        bootstrapServers =api_response.data['bootstrapServers']
+                        component_name = json_data_configmap['ML']['component_name']
+                        
+
+                        kafka_out = json_data_configmap['Topics']["out"]
+                        s3_access_key = json_data_configmap['S3_bucket']['aws_access_key_id']
+                        s3_secret_key = json_data_configmap['S3_bucket']['aws_secret_access_key']
+                        s3_bucket_output = json_data_configmap['S3_bucket']['s3-bucket-name']
+                        s3_region = json_data_configmap['S3_bucket']['region_name']
+                        s3_region_endpoint = json_data_configmap['S3_bucket']['endpoint_url']
+
+                        s3_path = json_data_request['S3_bucket_desc']['folder']
+                        #s3_file = json_data_request['S3_bucket_desc'].get('filename',None)
                         while True:
                               try:
                                     Producer=KafkaProducer(bootstrap_servers=bootstrapServers,value_serializer=lambda v: json.dumps(v).encode('utf-8'),key_serializer=str.encode)
