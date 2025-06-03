@@ -92,30 +92,7 @@ def create_app():
                   workflow_name = json_data_configmap.get('workflow_name', '')
                   bootstrapServers =api_response.data['bootstrapServers']
                   component_name = json_data_configmap['ML']['component_name']
-                  while True:
-                        try:
-                              Producer=KafkaProducer(bootstrap_servers=bootstrapServers,value_serializer=lambda v: json.dumps(v).encode('utf-8'),key_serializer=str.encode)
-                              handler = KafkaHandler(defaultproducer=Producer)
-                              console_handler = logging.StreamHandler()
-                              console_handler.setLevel(logging.DEBUG)
-                              filter = DefaultContextFilter()
-                              app.logger.addFilter(filter)
-                              app.logger.addHandler(handler)
-                              app.logger.addHandler(console_handler)
-                              app.logger.setLevel(logging.DEBUG)
-
-                              logger_app = logging.LoggerAdapter(app.logger, {'source': component_name},merge_extra=True)
-                              break
-                        except Exception as e:
-                              app.logger.error('Got exception '+str(e)+'\n'+traceback.format_exc()+'\n'+'So we retry', extra={'status': 'CRITICAL'})
-                  logger_workflow = logging.LoggerAdapter(logger_app, {'workflow_name': workflow_name,'producer':Producer},merge_extra=True)
-                  logger_workflow.info('Starting Workflow',extra={'status':'START'})
-                  logger_workflow.info('Reading json data request'+str(json_data_request), extra={'status': 'DEBUG'})
-                  logger_workflow.info('Reading json data configmap'+str(json_data_configmap), extra={'status': 'DEBUG'})
-                  if not(json_data_request['previous_component_end'] == 'True' or json_data_request['previous_component_end']):
-                        class PreviousComponentEndException(Exception):
-                              pass
-                        raise PreviousComponentEndException('Previous component did not end correctly')
+                  
 
                   kafka_out = json_data_configmap['Topics']["out"]
                   s3_access_key = json_data_configmap['S3_bucket']['aws_access_key_id']
@@ -129,6 +106,32 @@ def create_app():
 
                   def threadentry():
                         try:
+
+                              while True:
+                                    try:
+                                          Producer=KafkaProducer(bootstrap_servers=bootstrapServers,value_serializer=lambda v: json.dumps(v).encode('utf-8'),key_serializer=str.encode)
+                                          handler = KafkaHandler(defaultproducer=Producer)
+                                          console_handler = logging.StreamHandler()
+                                          console_handler.setLevel(logging.DEBUG)
+                                          filter = DefaultContextFilter()
+                                          app.logger.addFilter(filter)
+                                          app.logger.addHandler(handler)
+                                          app.logger.addHandler(console_handler)
+                                          app.logger.setLevel(logging.DEBUG)
+
+                                          logger_app = logging.LoggerAdapter(app.logger, {'source': component_name},merge_extra=True)
+                                          break
+                                    except Exception as e:
+                                          app.logger.error('Got exception '+str(e)+'\n'+traceback.format_exc()+'\n'+'So we retry', extra={'status': 'CRITICAL'})
+                              logger_workflow = logging.LoggerAdapter(logger_app, {'workflow_name': workflow_name,'producer':Producer},merge_extra=True)
+                              logger_workflow.info('Starting Workflow',extra={'status':'START'})
+                              logger_workflow.info('Reading json data request'+str(json_data_request), extra={'status': 'DEBUG'})
+                              logger_workflow.info('Reading json data configmap'+str(json_data_configmap), extra={'status': 'DEBUG'})
+                              if not(json_data_request['previous_component_end'] == 'True' or json_data_request['previous_component_end']):
+                                    class PreviousComponentEndException(Exception):
+                                          pass
+                                    raise PreviousComponentEndException('Previous component did not end correctly')
+
                               logger_workflow.info('All json data read', extra={'status': 'DEBUG'})
 
                               clientS3 = S3Client(aws_access_key_id=s3_access_key, aws_secret_access_key=s3_secret_key,endpoint_url=s3_region_endpoint)
