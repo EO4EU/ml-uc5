@@ -110,40 +110,38 @@ def create_app():
                         while True:
                               try:
                                     Producer=KafkaProducer(bootstrap_servers=bootstrapServers,value_serializer=lambda v: json.dumps(v).encode('utf-8'),key_serializer=str.encode)
-                                    handler = KafkaHandler(defaultproducer=Producer)
-                                    console_handler = logging.StreamHandler()
-                                    console_handler.setLevel(logging.DEBUG)
-                                    filter = DefaultContextFilter()
-                                    app.logger.addFilter(filter)
-                                    app.logger.addHandler(handler)
-                                    app.logger.addHandler(console_handler)
-                                    app.logger.setLevel(logging.DEBUG)
-
-                                    logger_app = logging.LoggerAdapter(app.logger, {'source': component_name},merge_extra=True)
                                     break
                               except Exception as e:
                                     app.logger.error('Got exception '+str(e)+'\n'+traceback.format_exc()+'\n'+'So we retry', extra={'status': 'CRITICAL'})
                         try:
+                              handler = KafkaHandler(defaultproducer=Producer)
+                              handler.setLevel(logging.INFO)
+                              filter = DefaultContextFilter()
+                              
+                              logger_app = logging.LoggerAdapter(app.logger, {'source': component_name},merge_extra=True)
+                              logger_app.addFilter(filter)
+                              logger_app.addHandler(handler)
+                              logger_app.setLevel(logging.DEBUG)
                               logger_workflow = logging.LoggerAdapter(logger_app, {'workflow_name': workflow_name,'producer':Producer},merge_extra=True)
                               logger_workflow.info('Starting Workflow',extra={'status':'START'})
-                              logger_workflow.info('Reading json data request'+str(json_data_request), extra={'status': 'DEBUG'})
-                              logger_workflow.info('Reading json data configmap'+str(json_data_configmap), extra={'status': 'DEBUG'})
+                              logger_workflow.debug('Reading json data request'+str(json_data_request), extra={'status': 'DEBUG'})
+                              logger_workflow.debug('Reading json data configmap'+str(json_data_configmap), extra={'status': 'DEBUG'})
                               if not(json_data_request['previous_component_end'] == 'True' or json_data_request['previous_component_end']):
                                     class PreviousComponentEndException(Exception):
                                           pass
                                     raise PreviousComponentEndException('Previous component did not end correctly')
 
-                              logger_workflow.info('All json data read', extra={'status': 'DEBUG'})
+                              logger_workflow.debug('All json data read', extra={'status': 'DEBUG'})
 
                               clientS3 = S3Client(aws_access_key_id=s3_access_key, aws_secret_access_key=s3_secret_key,endpoint_url=s3_region_endpoint)
                               clientS3.set_as_default_client()
 
-                              logger_workflow.info('Client is ready', extra={'status': 'DEBUG'})
+                              logger_workflow.debug('Client is ready', extra={'status': 'DEBUG'})
                               if s3_path.endswith('/'):
                                     s3_path=s3_path[:-1]
                               cp = CloudPath("s3://"+s3_bucket_output+'/'+s3_path+'/', client=clientS3)
                               cpOutput = CloudPath("s3://"+s3_bucket_output+'/result-uc5-cfactor/')
-                              logger_workflow.info("path is s3://"+s3_bucket_output+'/result-uc5-cfactor/', extra={'status': 'DEBUG'})
+                              logger_workflow.debug("path is s3://"+s3_bucket_output+'/result-uc5-cfactor/', extra={'status': 'DEBUG'})
 
                               with cpOutput.joinpath('log.txt').open('w') as fileOutput:
                                     def read_data(folder):
@@ -159,13 +157,13 @@ def create_app():
                                     for folder in cp.iterdir():
                                           if folder.name.endswith('.tiff') or folder.name.endswith('.tif'):
                                                 data=read_data(folder)
-                                                logger_workflow.info('datashape '+str(data[0].shape), extra={'status': 'DEBUG'})
+                                                logger_workflow.debug('datashape '+str(data[0].shape), extra={'status': 'DEBUG'})
                                                 to_treat[folder.name]=data
                                     for key,(value,meta) in to_treat.items():
                                           shapeArray=value.shape
                                           xshape=shapeArray[1]
                                           yshape=shapeArray[2]
-                                          logger_workflow.info('shape '+str(xshape)+' '+str(yshape), extra={'status': 'DEBUG'})
+                                          logger_workflow.debug('shape '+str(xshape)+' '+str(yshape), extra={'status': 'DEBUG'})
                                           resultArray=np.zeros([xshape,yshape],dtype=np.float32)
                                           count=np.zeros([xshape,yshape],dtype=np.float32)
 
@@ -203,10 +201,10 @@ def create_app():
                                                       dic["i"]=i
                                                       dic["j"]=j
                                                       toInfer.append(dic)
-                                          logger_workflow.info('start inference', extra={'status': 'DEBUG'})
-                                          logger_workflow.info('length '+str(len(toInfer)), extra={'status': 'DEBUG'})
+                                          logger_workflow.debug('start inference', extra={'status': 'DEBUG'})
+                                          logger_workflow.debug('length '+str(len(toInfer)), extra={'status': 'DEBUG'})
                                           asyncio.run(doInference(toInfer,logger_workflow))
-                                          logger_workflow.info('inference done', extra={'status': 'DEBUG'})
+                                          logger_workflow.debug('inference done', extra={'status': 'DEBUG'})
                                           for requestElem in toInfer:
                                                 result_subarray=requestElem["result"]
                                                 i=requestElem["i"]
@@ -215,7 +213,7 @@ def create_app():
                                                 resultArray[i+0:i+9,j+0:j+9]=resultArray[i+0:i+9,j+0:j+9]+result_subarray
                                                 count[i+0:i+9,j+0:j+9]=count[i+0:i+9,j+0:j+9]+1.0
 
-                                          logger_workflow.info('array all done', extra={'status': 'DEBUG'})
+                                          logger_workflow.debug('array all done', extra={'status': 'DEBUG'})
                                           resultArray=resultArray/count
 
                                           transform=rasterio.transform.AffineTransformer(meta['transform'])
@@ -231,10 +229,10 @@ def create_app():
 
                                           df = pd.DataFrame(combined, columns=['x [m]', 'y [m]', 'cfactor'])
                                           outputPath=cpOutput.joinpath(key+'-cfactor-result.csv')
-                                          logger_workflow.info('csv writting', extra={'status': 'DEBUG'})
+                                          logger_workflow.debug('csv writting', extra={'status': 'DEBUG'})
                                           with outputPath.open('w') as outputFile:
                                                 df.to_csv(outputFile, index=False,header=True)
-                                          logger_workflow.info('csv writting done', extra={'status': 'DEBUG'})
+                                          logger_workflow.debug('csv writting done', extra={'status': 'DEBUG'})
                                           jsonData={}
                                           jsonData['data']=resultArray.tolist()
                                           jsonData['shape']=resultArray.shape
@@ -243,26 +241,26 @@ def create_app():
                                           jsonData['metadata']=meta
 
                                           outputPath=cpOutput.joinpath(key+'-cfactor-result.json')
-                                          logger_workflow.info('start json writting', extra={'status': 'DEBUG'})
+                                          logger_workflow.debug('start json writting', extra={'status': 'DEBUG'})
                                           with outputPath.open('w') as outputFile:
                                                 json.dump(jsonData, outputFile)
-                                          logger_workflow.info('json writting done', extra={'status': 'DEBUG'})
+                                          logger_workflow.debug('json writting done', extra={'status': 'DEBUG'})
                                           outputPath=cpOutput.joinpath(key+'-cfactor-result.tiff')
-                                          logger_workflow.info('start tiff writting', extra={'status': 'DEBUG'})
+                                          logger_workflow.debug('start tiff writting', extra={'status': 'DEBUG'})
                                           with outputPath.open('wb') as outputFile, rasterio.io.MemoryFile() as memfile:
-                                                logger_workflow.info('height '+str(xshape)+' width '+str(yshape), extra={'status': 'DEBUG'})
-                                                logger_workflow.info('type height '+str(type(xshape))+' type width '+str(type(yshape)), extra={'status': 'DEBUG'})
-                                                logger_workflow.info('crs '+str(meta['crs']), extra={'status': 'DEBUG'})
+                                                logger_workflow.debug('height '+str(xshape)+' width '+str(yshape), extra={'status': 'DEBUG'})
+                                                logger_workflow.debug('type height '+str(type(xshape))+' type width '+str(type(yshape)), extra={'status': 'DEBUG'})
+                                                logger_workflow.debug('crs '+str(meta['crs']), extra={'status': 'DEBUG'})
                                                 with memfile.open(driver="GTiff",crs=meta['crs'],transform=meta['transform'],height=xshape,width=yshape,count=1,dtype=resultArray.dtype) as dst:
                                                       dst.write(resultArray,1)
                                                       dst.set_band_description(1,'cfactor, value between 0 and 1 indicating the risk of erosion')
                                                       dst.set_band_unit(1,'Unitless')
                                                       dst.update_tags(ns='GDAL_METADATA',description='cfactor, value between 0 and 1 indicating the risk of erosion')
                                                 outputFile.write(memfile.read())
-                                          logger_workflow.info('tiff writting done', extra={'status': 'DEBUG'})
+                                          logger_workflow.debug('tiff writting done', extra={'status': 'DEBUG'})
                                     
-                                    logger_workflow.info('Output written', extra={'status': 'DEBUG'})
-                                    logger_workflow.info('Connecting to Kafka', extra={'status': 'DEBUG'})
+                                    logger_workflow.debug('Output written', extra={'status': 'DEBUG'})
+                                    logger_workflow.debug('Connecting to Kafka', extra={'status': 'DEBUG'})
             
                                     response_json ={
                                     "previous_component_end": "True",
