@@ -52,6 +52,11 @@ def create_app():
 
       app = Flask(__name__)
       app.logger.setLevel(logging.DEBUG)
+      handler = KafkaHandler()
+      handler.setLevel(logging.INFO)
+      filter = DefaultContextFilter()
+      app.logger.addHandler(handler)
+      app.logger.addFilter(filter)
       app.logger.info("Application Starting up...", extra={'status': 'DEBUG'})
 
       # This is the entry point for the SSL model from Image to Feature service.
@@ -114,15 +119,7 @@ def create_app():
                               except Exception as e:
                                     app.logger.error('Got exception '+str(e)+'\n'+traceback.format_exc()+'\n'+'So we retry', extra={'status': 'CRITICAL'})
                         try:
-                              handler = KafkaHandler(defaultproducer=Producer)
-                              handler.setLevel(logging.INFO)
-                              filter = DefaultContextFilter()
-                              
-                              logger_app = logging.LoggerAdapter(app.logger, {'source': component_name},merge_extra=True)
-                              logger_app.addFilter(filter)
-                              logger_app.addHandler(handler)
-                              logger_app.setLevel(logging.DEBUG)
-                              logger_workflow = logging.LoggerAdapter(logger_app, {'workflow_name': workflow_name,'producer':Producer},merge_extra=True)
+                              logger_workflow = logging.LoggerAdapter(app.logger, {'source': component_name,'workflow_name': workflow_name,'producer':Producer},merge_extra=True)
                               logger_workflow.info('Starting Workflow',extra={'status':'START'})
                               logger_workflow.debug('Reading json data request'+str(json_data_request), extra={'status': 'DEBUG'})
                               logger_workflow.debug('Reading json data configmap'+str(json_data_configmap), extra={'status': 'DEBUG'})

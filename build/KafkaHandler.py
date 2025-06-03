@@ -24,9 +24,8 @@ class DefaultContextFilter(logging.Filter):
         return True
 
 class KafkaHandler(logging.Handler):
-    def __init__(self, level=logging.NOTSET,defaultproducer=None):
+    def __init__(self, level=logging.NOTSET):
         super().__init__(level)
-        self.producer=defaultproducer
 
     def emit(self, record):
         message={}
@@ -43,7 +42,5 @@ class KafkaHandler(logging.Handler):
         message["optional"]=optional
         if hasattr(record, 'producer'):
             producer=record.producer
-        else:
-            producer=self.producer
-        producer.send("monitoring.notify",key='key',value=message)
-        producer.flush()
+            producer.send("monitoring.notify",key='key',value=message)
+            producer.flush()
