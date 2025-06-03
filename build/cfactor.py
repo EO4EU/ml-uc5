@@ -85,6 +85,7 @@ def create_app():
                   raw_data = request.data
                   def threadentry(raw_data):
                         app.logger.info('Received message for '+str(name))
+                        app.logger.info(f"thread ID is {threading.get_ident()}")
                         config.load_incluster_config()
                         api_instance = client.CoreV1Api()
                         configmap_name = str(name)
