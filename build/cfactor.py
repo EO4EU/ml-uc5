@@ -329,7 +329,7 @@ def create_app():
                               results = await triton_client.infer('cfactor',inputs,outputs=outputs)
                               return (task,results)
                   except Exception as e:
-                        logger_workflow.error('Got exception in inference '+str(e)+'\n'+traceback.format_exc(), extra={'status': 'WARNING'})
+                        logger_workflow.debug('Got exception in inference '+str(e)+'\n'+traceback.format_exc(), extra={'status': 'WARNING'})
                         nonlocal last_throw
                         last_throw=time.time()
                         return await consume(task)
