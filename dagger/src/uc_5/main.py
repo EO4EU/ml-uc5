@@ -1,5 +1,8 @@
+import json
 import dagger
+from base64 import b64encode
 from typing import Annotated
+from datetime import datetime
 from dagger import Doc, dag, function, object_type
 
 @object_type
@@ -9,21 +12,21 @@ class Uc5:
         self,
         bucket: Annotated[str, Doc("S3 Bucket")],
         endpoint: Annotated[str, Doc("S3 Endpoint")],
-        accesskey: Annotated[str, Doc("S3 Access Key")],
-        secretkey: Annotated[str, Doc("S3 Secret Key")]
+        accesskey: Annotated[dagger.Secret, Doc("S3 Access Key")],
+        secretkey: Annotated[dagger.Secret, Doc("S3 Secret Key")]
     ) -> dagger.Service:
         """Start and return a registry service."""
         return (
             dag.container()
             .from_("registry:2.8.2")
             .with_env_variable("REGISTRY_HTTP_ADDR", "0.0.0.0:80")
-            .with_env_variable("REGISTRY_HTTP_SECRET", secretkey)
+            .with_secret_variable("REGISTRY_HTTP_SECRET", secretkey)
             .with_env_variable("REGISTRY_STORAGE", "s3")
             .with_env_variable("REGISTRY_STORAGE_S3_REGION", "default")
             .with_env_variable("REGISTRY_STORAGE_S3_BUCKET", bucket)
             .with_env_variable("REGISTRY_STORAGE_S3_REGIONENDPOINT", endpoint)
-            .with_env_variable("REGISTRY_STORAGE_S3_ACCESSKEY", accesskey)
-            .with_env_variable("REGISTRY_STORAGE_S3_SECRETKEY", secretkey)
+            .with_secret_variable("REGISTRY_STORAGE_S3_ACCESSKEY", accesskey)
+            .with_secret_variable("REGISTRY_STORAGE_S3_SECRETKEY", secretkey)
             .with_exposed_port(80)
             .as_service()
         )
@@ -43,14 +46,12 @@ class Uc5:
         ],
     ) -> str:
         """Build and publish image from existing Dockerfile"""
-        accesskey = await access.plaintext()
-        secretkey = await secret.plaintext()
         return await (
             dag.container()
             .from_("gcr.io/kaniko-project/executor:debug")
             .with_service_binding(
                 "registry.local",
-                self.registry(bucket, endpoint, accesskey, secretkey)
+                self.registry(bucket, endpoint, access, secret)
             )            
             .with_mounted_directory("/workspace", wkd)
             .with_exec(
@@ -85,8 +86,6 @@ class Uc5:
         ],
     ) -> dagger.File:
         """Scan image to detect vulnerabilities"""
-        accesskey = await access.plaintext()
-        secretkey = await secret.plaintext()
         template = (
             dag.container()
             .from_("alpine:latest")
@@ -103,7 +102,7 @@ class Uc5:
             dag.trivy().base()
             .with_service_binding(
                 "registry.local",
-                self.registry(bucket, endpoint, accesskey, secretkey)
+                self.registry(bucket, endpoint, access, secret)
             )
             .with_directory("/src", wkd)
             .with_file("/src/html.tpl", template.file("/src/html.tpl"))
@@ -169,21 +168,19 @@ class Uc5:
     @function
     async def encode(
         self,
+        registry: Annotated[str, Doc("Registry address")],
         username: Annotated[str, Doc("Registry username")],
         password: Annotated[dagger.Secret, Doc("Registry password")],
-    ) -> str:
+    ) -> dagger.Secret:
+        """Encode username and password in base64."""
         token = await password.plaintext()
-        return await (
-            dag.container()
-            .from_("alpine:latest")
-            .with_exec(
-                [
-                    "/bin/sh",
-                    "-c",
-                    f"printf {username}:{token} | base64"
-                ]
-            )
-            .stdout()
+        auth_blob = b64encode(f"{username}:{token}".encode("utf-8")).decode("utf-8")
+
+        return dagger.Client().set_secret(
+            "ci_blob",
+            json.dumps({"auths": {
+                registry: {"auth": auth_blob},
+            }})
         )
 
     @function
@@ -207,31 +204,15 @@ class Uc5:
         ],
     ) -> str:
         """Build and publish image from existing Dockerfile"""
-        accesskey = await access.plaintext()
-        secretkey = await secret.plaintext()
-        blob = await self.encode(username, password)
-        config = (
-            dag.container()
-            .from_("alpine:latest")
-            .with_env_variable("CI_REGISTRY", registry)
-            .with_env_variable("CI_BLOB", blob)
-            .with_exec(
-                [
-                    "/bin/sh",
-                    "-c",
-                    "echo '{\"auths\":{\"'$CI_REGISTRY'\":{\"auth\":\"'$CI_BLOB'\"}}}' | sed 's/ //g'"
-                ],
-                redirect_stdout="/tmp/config.json"
-            )
-        )
+        auth_blob: dagger.Secret = await self.encode(registry, username, password)
         return await (
             dag.container(platform=dagger.Platform("linux/amd64"))
             .with_service_binding(
                 "registry.local",
-                self.registry(bucket, endpoint, accesskey, secretkey)
+                self.registry(bucket, endpoint, access, secret)
             )
             .from_("rapidfort/skopeo-ib:v1.16.1")
-            .with_file("/tmp/config.json", config.file("/tmp/config.json"), owner="1000:1000")
+            .with_mounted_secret("/tmp/config.json", auth_blob, owner = "1000:1000")
             .with_exec(
                 [
                     "skopeo",
@@ -267,6 +248,7 @@ class Uc5:
             .from_("harness/cookiecutter:latest")
             .with_directory("/src", wkd)
             .with_workdir("/src")
+            .with_env_variable("GITLAB_TOKEN", token)
             .with_exec(
                 [
                     "cookiecutter",
@@ -275,8 +257,9 @@ class Uc5:
                     "cookiecutter-config.yaml",
                     "--checkout",
                     f"{branch}",
-                    f"https://{username}:{token}@{gitlab}/eo4eu/eo4eu-cicd/cicd-infra/cookiecutter-helm-template.git"
-                ]
+                    f"https://{username}:$GITLAB_TOKEN@{gitlab}/eo4eu/eo4eu-cicd/cicd-infra/cookiecutter-helm-template.git"
+                ],
+                expand=True
             )
             .directory(f"/src/{repo}")
         )
@@ -290,13 +273,11 @@ class Uc5:
         secret: Annotated[dagger.Secret, Doc("S3 Secret Key")],
     ) -> str:
         """Clean local registry."""
-        accesskey = await access.plaintext()
-        secretkey = await secret.plaintext()
         return await (
             dag.container()
             .from_("amazon/aws-cli")
-            .with_env_variable("AWS_ACCESS_KEY_ID", accesskey)
-            .with_env_variable("AWS_SECRET_ACCESS_KEY", secretkey)
+            .with_secret_variable("AWS_ACCESS_KEY_ID", access)
+            .with_secret_variable("AWS_SECRET_ACCESS_KEY", secret)
             .with_exec(
                 [
                     "aws",
