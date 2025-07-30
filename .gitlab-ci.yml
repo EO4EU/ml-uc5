@@ -1,5 +1,5 @@
 .dagger:
-  image: ghcr.io/purpleclay/dagger-cli:0.15.2
+  image: ghcr.io/purpleclay/dagger-cli:0.18.10
   variables:
     MINIO: s3.waw3-2.cloudferro.com
     BUCKET: registry-inference-server-uc5
