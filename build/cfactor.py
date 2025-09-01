@@ -358,12 +358,12 @@ def create_app():
             
             async def postprocess(task,results):
                   if task[0]==1:
-                        result=results.as_numpy('output__0')[0][0]
+                        result=results.as_numpy('output__0')[0]
                         toInfer[task[1]]["result"]=result
                   if task[0]==255:
                         result=results.as_numpy('output__0')
                         for i in range(0,255):
-                              toInfer[task[1]+i]["result"]=result[i][0]
+                              toInfer[task[1]+i]["result"]=result[i]
                         
 
             def postprocessTask(task):
