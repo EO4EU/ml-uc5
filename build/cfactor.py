@@ -200,10 +200,9 @@ def create_app():
                                                       return result,meta
                                     
                                     to_treat={}
-                                    for folder in cp.iterdir():
-                                          if folder.name.endswith('.csv') :
-                                                data=pd.read_csv(folder)
-                                                to_treat[folder.name]=data
+                                    for folder in cp.rglob('*.csv'):
+                                          data=pd.read_csv(folder)
+                                          to_treat[folder.name]=data
                                     for key,value in to_treat.items():
                                           required_bands = ['B11', 'B12', 'B2', 'B3', 'B4', 'B8']
                                           missing_bands = [band for band in required_bands if band not in value.columns]
