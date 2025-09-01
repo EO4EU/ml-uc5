@@ -247,7 +247,7 @@ def create_app():
                                           for i in range(0,X_scaled.shape[0]):
                                                 dic={}
                                                 dic["i"]=i
-                                                dic["input"]=X_scaled[i:i+1,:].astype(np.float32)
+                                                dic["data"]=X_scaled[i:i+1,:].astype(np.float32)
                                                 toInfer.append(dic)
                                           logger_workflow.debug('start inference', extra={'status': 'DEBUG'})
                                           logger_workflow.debug('length '+str(len(toInfer)), extra={'status': 'DEBUG'})
