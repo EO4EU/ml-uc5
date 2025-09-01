@@ -48,6 +48,8 @@ import functools
 
 from KafkaHandler import KafkaHandler,DefaultContextFilter
 
+import joblib
+
 def create_app():
 
       app = Flask(__name__)
@@ -58,6 +60,53 @@ def create_app():
       app.logger.addHandler(handler)
       app.logger.addFilter(filter)
       app.logger.info("Application Starting up...", extra={'status': 'DEBUG'})
+      scaler_params = joblib.load("scaler_params.joblib")
+      target_mean = joblib.load("target_mean.joblib")
+
+      def calculate_spectral_indices(df):
+            """Calculate spectral indices from satellite bands"""
+            df = df.copy()
+            
+            # NDVI (Normalized Difference Vegetation Index)
+            df['NDVI'] = (df['B8'] - df['B4']) / (df['B8'] + df['B4'] + 1e-8)
+            
+            # NDWI (Normalized Difference Water Index)
+            df['NDWI'] = (df['B3'] - df['B8']) / (df['B3'] + df['B8'] + 1e-8)
+            
+            # Simple Ratio (SR)
+            df['SR'] = df['B8'] / (df['B4'] + 1e-8)
+            
+            # Enhanced Vegetation Index (EVI)
+            df['EVI'] = 2.5 * ((df['B8'] - df['B4']) / (df['B8'] + 6 * df['B4'] - 7.5 * df['B2'] + 1))
+            
+            # Soil Adjusted Vegetation Index (SAVI)
+            df['SAVI'] = ((df['B8'] - df['B4']) / (df['B8'] + df['B4'] + 0.5)) * 1.5
+            
+            return df
+
+      def calculate_band_ratios(df):
+            """Calculate ratios between different spectral bands"""
+            df = df.copy()
+            band_cols = ['B11', 'B12', 'B2', 'B3', 'B4', 'B8']
+            
+            # Calculate all combinations of band ratios
+            for i, band1 in enumerate(band_cols):
+                  for band2 in band_cols[i+1:]:
+                        ratio_name = f'{band1}_{band2}_ratio'
+                        df[ratio_name] = df[band1] / (df[band2] + 1e-8)
+            
+            return df
+
+      def calculate_polynomial_features(df):
+            """Calculate polynomial features for important spectral indices"""
+            df = df.copy()
+            important_features = ['NDVI', 'EVI', 'SAVI']
+            
+            for feature in important_features:
+                  if feature in df.columns:
+                        df[f'{feature}_pow2'] = df[feature] ** 2
+            
+            return df
 
       # This is the entry point for the SSL model from Image to Feature service.
       # It will receive a message from the Kafka topic and then do the inference on the data.
@@ -152,66 +201,65 @@ def create_app():
                                     
                                     to_treat={}
                                     for folder in cp.iterdir():
-                                          if folder.name.endswith('.tiff') or folder.name.endswith('.tif'):
-                                                data=read_data(folder)
-                                                logger_workflow.debug('datashape '+str(data[0].shape), extra={'status': 'DEBUG'})
+                                          if folder.name.endswith('.csv') :
+                                                data=pd.read_csv(folder)
                                                 to_treat[folder.name]=data
-                                    for key,(value,meta) in to_treat.items():
-                                          shapeArray=value.shape
-                                          xshape=shapeArray[1]
-                                          yshape=shapeArray[2]
-                                          logger_workflow.debug('shape '+str(xshape)+' '+str(yshape), extra={'status': 'DEBUG'})
-                                          resultArray=np.zeros([xshape,yshape],dtype=np.float32)
-                                          count=np.zeros([xshape,yshape],dtype=np.float32)
+                                    for key,value in to_treat.items():
+                                          required_bands = ['B11', 'B12', 'B2', 'B3', 'B4', 'B8']
+                                          missing_bands = [band for band in required_bands if band not in value.columns]
+                                          if missing_bands:
+                                                raise ValueError(f"Missing required bands: {missing_bands}")
 
-                                          toInfer=[]
-                                          for i in range(0,xshape-8,9):
-                                                for j in range(0,yshape-8,9):
-                                                      subarray=value[0:3,i:i+9,j:j+9]
-                                                      dic={}
-                                                      dic["data"]=np.expand_dims(subarray.astype(np.float32),axis=0)
-                                                      dic["i"]=i
-                                                      dic["j"]=j
-                                                      toInfer.append(dic)
-                                                if yshape%9!=0:
-                                                      j=yshape-9
-                                                      subarray=value[:,i:i+9,j:yshape]
-                                                      dic={}
-                                                      dic["data"]=np.expand_dims(subarray.astype(np.float32),axis=0)
-                                                      dic["i"]=i
-                                                      dic["j"]=j
-                                                      toInfer.append(dic)
-                                          if xshape%9!=0:
-                                                i=xshape-9
-                                                for j in range(0,yshape-8,9):
-                                                      subarray=value[0:3,i:xshape,j:j+9]
-                                                      dic={}
-                                                      dic["data"]=np.expand_dims(subarray.astype(np.float32),axis=0)
-                                                      dic["i"]=i
-                                                      dic["j"]=j
-                                                      toInfer.append(dic)
-                                                if yshape%9!=0:
-                                                      j=yshape-9
-                                                      subarray=value[0:3,i:xshape,j:j+9]
-                                                      dic={}
-                                                      dic["data"]=np.expand_dims(subarray.astype(np.float32),axis=0)
-                                                      dic["i"]=i
-                                                      dic["j"]=j
-                                                      toInfer.append(dic)
+                                          logger_workflow.debug(f"Processing {len(value)} samples...", extra={'status': 'DEBUG'})
+                                          value = calculate_spectral_indices(value)
+                                          value = calculate_band_ratios(value)
+                                          value = calculate_polynomial_features(value)
+
+                                          # Feature order (must match training)
+                                          feature_names = [
+                                          # Original bands
+                                          'B11', 'B12', 'B2', 'B3', 'B4', 'B8',
+                                          # Spectral indices
+                                          'NDVI', 'NDWI', 'SR', 'EVI', 'SAVI',
+                                          # Band ratios (15 combinations for 6 bands)
+                                          'B11_B12_ratio', 'B11_B2_ratio', 'B11_B3_ratio', 'B11_B4_ratio', 'B11_B8_ratio',
+                                          'B12_B2_ratio', 'B12_B3_ratio', 'B12_B4_ratio', 'B12_B8_ratio',
+                                          'B2_B3_ratio', 'B2_B4_ratio', 'B2_B8_ratio',
+                                          'B3_B4_ratio', 'B3_B8_ratio',
+                                          'B4_B8_ratio',
+                                          # Polynomial features
+                                          'NDVI_pow2', 'EVI_pow2', 'SAVI_pow2'
+                                          ]
+
+                                          # Extract features in correct order
+                                          X = value[feature_names].values
+                                          print(f"Feature matrix shape: {X.shape}")
+
+                                          # === Apply robust scaling ===
+                                          # During training, all features were scaled using robust scaling (no time features):
+                                          # scaled = (x - q1) / IQR
+                                          X_scaled = X.copy()
+                                          for i in range(X.shape[1]):  # Scale all features
+                                                fname = list(scaler_params['iqr'].keys())[i]
+                                                q1 = scaler_params['q1'][fname]
+                                                iqr = scaler_params['iqr'][fname]
+                                                X_scaled[:, i] = (X[:, i] - q1) / iqr
+                                          toInfer = []
+                                          for i in range(0,X_scaled.shape[0]):
+                                                dic={}
+                                                dic["i"]=i
+                                                dic["input"]=X_scaled[i:i+1,:].astype(np.float32)
+                                                toInfer.append(dic)
                                           logger_workflow.debug('start inference', extra={'status': 'DEBUG'})
                                           logger_workflow.debug('length '+str(len(toInfer)), extra={'status': 'DEBUG'})
                                           asyncio.run(doInference(toInfer,logger_workflow))
                                           logger_workflow.debug('inference done', extra={'status': 'DEBUG'})
+                                          resultArray=np.zeros((X_scaled.shape[0],1),dtype=np.float32)
                                           for requestElem in toInfer:
                                                 result_subarray=requestElem["result"]
                                                 i=requestElem["i"]
-                                                j=requestElem["j"]
-                                                
-                                                resultArray[i+0:i+9,j+0:j+9]=resultArray[i+0:i+9,j+0:j+9]+result_subarray
-                                                count[i+0:i+9,j+0:j+9]=count[i+0:i+9,j+0:j+9]+1.0
-
+                                                resultArray[i,:]=result_subarray + target_mean - 0.5
                                           logger_workflow.debug('array all done', extra={'status': 'DEBUG'})
-                                          resultArray=resultArray/count
 
                                           transform=rasterio.transform.AffineTransformer(meta['transform'])
 
@@ -224,37 +272,12 @@ def create_app():
 
                                           combined = np.vstack((xflat, yflat, resultflat)).T
 
-                                          df = pd.DataFrame(combined, columns=['x [m]', 'y [m]', 'cfactor'])
+                                          df_result = pd.DataFrame(resultArray, columns=['cfactor'])
                                           outputPath=cpOutput.joinpath(key+'-cfactor-result.csv')
                                           logger_workflow.debug('csv writting', extra={'status': 'DEBUG'})
                                           with outputPath.open('w') as outputFile:
-                                                df.to_csv(outputFile, index=False,header=True)
+                                                df_result.to_csv(outputFile, index=False,header=True)
                                           logger_workflow.debug('csv writting done', extra={'status': 'DEBUG'})
-                                          jsonData={}
-                                          jsonData['data']=resultArray.tolist()
-                                          jsonData['shape']=resultArray.shape
-                                          jsonData['type']=str(resultArray.dtype)
-                                          meta['crs']=meta['crs'].to_string()
-                                          jsonData['metadata']=meta
-
-                                          outputPath=cpOutput.joinpath(key+'-cfactor-result.json')
-                                          logger_workflow.debug('start json writting', extra={'status': 'DEBUG'})
-                                          with outputPath.open('w') as outputFile:
-                                                json.dump(jsonData, outputFile)
-                                          logger_workflow.debug('json writting done', extra={'status': 'DEBUG'})
-                                          outputPath=cpOutput.joinpath(key+'-cfactor-result.tiff')
-                                          logger_workflow.debug('start tiff writting', extra={'status': 'DEBUG'})
-                                          with outputPath.open('wb') as outputFile, rasterio.io.MemoryFile() as memfile:
-                                                logger_workflow.debug('height '+str(xshape)+' width '+str(yshape), extra={'status': 'DEBUG'})
-                                                logger_workflow.debug('type height '+str(type(xshape))+' type width '+str(type(yshape)), extra={'status': 'DEBUG'})
-                                                logger_workflow.debug('crs '+str(meta['crs']), extra={'status': 'DEBUG'})
-                                                with memfile.open(driver="GTiff",crs=meta['crs'],transform=meta['transform'],height=xshape,width=yshape,count=1,dtype=resultArray.dtype) as dst:
-                                                      dst.write(resultArray,1)
-                                                      dst.set_band_description(1,'cfactor, value between 0 and 1 indicating the risk of erosion')
-                                                      dst.set_band_unit(1,'Unitless')
-                                                      dst.update_tags(ns='GDAL_METADATA',description='cfactor, value between 0 and 1 indicating the risk of erosion')
-                                                outputFile.write(memfile.read())
-                                          logger_workflow.debug('tiff writting done', extra={'status': 'DEBUG'})
                                     
                                     logger_workflow.debug('Output written', extra={'status': 'DEBUG'})
                                     logger_workflow.debug('Connecting to Kafka', extra={'status': 'DEBUG'})
@@ -311,22 +334,22 @@ def create_app():
                               count=task[1]
                               inputs=[]
                               outputs=[]
-                              inputs.append(httpclient.InferInput('input',toInfer[count]["data"].shape, "FP32"))
+                              inputs.append(httpclient.InferInput('input__0',toInfer[count]["data"].shape, "FP32"))
                               inputs[0].set_data_from_numpy(toInfer[count]["data"], binary_data=True)
-                              outputs.append(httpclient.InferRequestedOutput('output', binary_data=True))
-                              results = await triton_client.infer('cfactor',inputs,outputs=outputs)
+                              outputs.append(httpclient.InferRequestedOutput('output__0', binary_data=True))
+                              results = await triton_client.infer('cfactor2',inputs,outputs=outputs)
                               return (task,results)
                         if task[0]==255:
                               count=task[1]
                               inputs = []
                               outputs = []
-                              input=np.zeros([255,toInfer[count]["data"].shape[1],toInfer[count]["data"].shape[2],toInfer[count]["data"].shape[3]],dtype=np.float32)
+                              input=np.zeros([255,toInfer[count]["data"].shape[1]],dtype=np.float32)
                               for i in range(0,255):
                                     input[i]=toInfer[count+i]["data"][0]
-                              inputs.append(httpclient.InferInput('input',input.shape, "FP32"))
+                              inputs.append(httpclient.InferInput('input__0',input.shape, "FP32"))
                               inputs[0].set_data_from_numpy(input, binary_data=True)
-                              outputs.append(httpclient.InferRequestedOutput('output', binary_data=True))
-                              results = await triton_client.infer('cfactor',inputs,outputs=outputs)
+                              outputs.append(httpclient.InferRequestedOutput('output__0', binary_data=True))
+                              results = await triton_client.infer('cfactor2',inputs,outputs=outputs)
                               return (task,results)
                   except Exception as e:
                         logger_workflow.debug('Got exception in inference '+str(e)+'\n'+traceback.format_exc(), extra={'status': 'WARNING'})
