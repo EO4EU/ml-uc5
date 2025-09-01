@@ -189,16 +189,7 @@ def create_app():
                               cpOutput = CloudPath("s3://"+s3_bucket_output+'/result-uc5-cfactor/')
                               logger_workflow.debug("path is s3://"+s3_bucket_output+'/result-uc5-cfactor/', extra={'status': 'DEBUG'})
 
-                              with cpOutput.joinpath('log.txt').open('w') as fileOutput:
-                                    def read_data(folder):
-                                          logger_workflow.info('Opening folder '+str(folder), extra={'status': 'DEBUG'})
-                                          with folder.open('rb') as fileBand, rasterio.io.MemoryFile(fileBand) as memfile:
-                                                with memfile.open(driver="GTiff",sharing=False) as band_file:
-                                                      meta=band_file.meta
-                                                      result=band_file.read().astype(np.float32)/10000.0
-                                                      logger_workflow.info('Result obtained', extra={'status': 'DEBUG'})
-                                                      return result,meta
-                                    
+                              with cpOutput.joinpath('log.txt').open('w') as fileOutput:                                    
                                     to_treat={}
                                     for folder in cp.rglob('*.csv'):
                                           data=pd.read_csv(folder)
@@ -259,17 +250,6 @@ def create_app():
                                                 i=requestElem["i"]
                                                 resultArray[i,:]=result_subarray + target_mean - 0.5
                                           logger_workflow.debug('array all done', extra={'status': 'DEBUG'})
-
-                                          transform=rasterio.transform.AffineTransformer(meta['transform'])
-
-                                          rows, cols = resultArray.shape
-
-                                          xArray, yArray = np.indices((rows, cols))
-                                          xflat = xArray.flatten()
-                                          yflat = yArray.flatten()
-                                          resultflat = resultArray.flatten()
-
-                                          combined = np.vstack((xflat, yflat, resultflat)).T
 
                                           df_result = pd.DataFrame(resultArray, columns=['cfactor'])
                                           outputPath=cpOutput.joinpath(key+'-cfactor-result.csv')
