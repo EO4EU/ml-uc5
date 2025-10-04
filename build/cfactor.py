@@ -271,7 +271,7 @@ def create_app():
                                                                                     logger_workflow.debug("band_name "+band_name,extra={'status': 'DEBUG'})
                                                                                     logger_workflow.debug("band_data shape "+str(band_data.shape),extra={'status': 'DEBUG'})
                                                                         band_file.close()
-                                                                  value=pd.DataFrame()
+                                                                  listvalue=[]
                                                                   h=None
                                                                   w=None
                                                                   for band_name in BANDS_ALL:
@@ -293,7 +293,8 @@ def create_app():
                                                                                     dic[band_name]=band_data[i,j]
                                                                               dic['x']=i
                                                                               dic['y']=j
-                                                                              value=value.append(dic,ignore_index=True)
+                                                                              listvalue.append(dic)
+                                                                  value=pd.DataFrame(listvalue)
                                                                   logger_workflow.debug(f"Processing {len(value)} samples...", extra={'status': 'DEBUG'})
                                                                   value = calculate_spectral_indices(value)
                                                                   value = calculate_band_ratios(value)
