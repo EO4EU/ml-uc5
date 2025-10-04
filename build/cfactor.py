@@ -50,6 +50,8 @@ from KafkaHandler import KafkaHandler,DefaultContextFilter
 
 import joblib
 
+import cv2
+
 def create_app():
 
       app = Flask(__name__)
@@ -189,74 +191,187 @@ def create_app():
                               cpOutput = CloudPath("s3://"+s3_bucket_output+'/result-uc5-cfactor/')
                               logger_workflow.debug("path is s3://"+s3_bucket_output+'/result-uc5-cfactor/', extra={'status': 'DEBUG'})
 
-                              with cpOutput.joinpath('log.txt').open('w') as fileOutput:                                    
-                                    to_treat={}
-                                    for folder in cp.rglob('*.csv'):
-                                          data=pd.read_csv(folder)
-                                          to_treat[folder.name]=data
-                                    for key,value in to_treat.items():
-                                          required_bands = ['B11', 'B12', 'B2', 'B3', 'B4', 'B8']
-                                          missing_bands = [band for band in required_bands if band not in value.columns]
-                                          if missing_bands:
-                                                raise ValueError(f"Missing required bands: {missing_bands}")
+                              with cpOutput.joinpath('log.txt').open('w') as fileOutput:
+                                    meta=None
+                                    def treatFolder(folder):
+                                                pattern=r'.*MSIL2A.*\.SAFE$'
+                                                match = re.search(pattern,folder.name)
+                                                if match:
+                                                      logger_workflow.debug('matched folder '+str(folder), extra={'status': 'DEBUG'})
+                                                      with tempfile.TemporaryDirectory() as tempdirBen:
+                                                            cpGranule=folder/"GRANULE"
+                                                            dicPath={}
+                                                            for folderGranule in cpGranule.iterdir():
+                                                                  logger_workflow.debug("granule path "+str(folderGranule),extra={'status': 'DEBUG'})
+                                                                  cpIMGData10m=folderGranule/"IMG_DATA"/"R10m"
+                                                                  for image in cpIMGData10m.iterdir():
+                                                                        pattern=r'.*_(.*)_10m\.jp2$'
+                                                                        match = re.search(pattern,image.name)
+                                                                        logger_workflow.debug("image path "+str(image),extra={'status': 'DEBUG'})
+                                                                        if match:
+                                                                              matchedBand=match.group(1)
+                                                                              logger_workflow.debug("matchedBand "+matchedBand,extra={'status': 'DEBUG'})
+                                                                              if matchedBand in ['B02','B03','B04','B08']:
+                                                                                    logger_workflow.debug("matchedBand 10m "+matchedBand,extra={'status': 'DEBUG'})
+                                                                                    path_src=image
+                                                                                    dicPath[matchedBand]=path_src
+                                                                        else:
+                                                                              logger_workflow.debug("not matched",extra={'status': 'DEBUG'})
+                                                                  cpIMGData20m=folderGranule/"IMG_DATA"/"R20m"
+                                                                  for image in cpIMGData20m.iterdir():
+                                                                        pattern=r'.*_(.*)_20m\.jp2$'
+                                                                        match = re.search(pattern,image.name)
+                                                                        logger_workflow.debug("image path "+str(image),extra={'status': 'DEBUG'})
+                                                                        if match:
+                                                                              logger_workflow.debug("matched",extra={'status': 'DEBUG'})
+                                                                              matchedBand=match.group(1)
+                                                                              logger_workflow.debug("matchedBand "+matchedBand,extra={'status': 'DEBUG'})
+                                                                              if matchedBand in ['B05','B06','B07','B8A','B11','B12']:
+                                                                                    logger_workflow.debug("matchedBand 20m "+matchedBand,extra={'status': 'DEBUG'})
+                                                                                    path_src=image
+                                                                                    dicPath[matchedBand]=path_src
+                                                                        else:
+                                                                              logger_workflow.debug("not matched",extra={'status': 'DEBUG'})
+                                                                  BANDS_10M = [
+                                                                              "B04",
+                                                                              "B03",
+                                                                              "B02",
+                                                                              "B08",
+                                                                              ]
 
-                                          logger_workflow.debug(f"Processing {len(value)} samples...", extra={'status': 'DEBUG'})
-                                          value = calculate_spectral_indices(value)
-                                          value = calculate_band_ratios(value)
-                                          value = calculate_polynomial_features(value)
 
-                                          # Feature order (must match training)
-                                          feature_names = [
-                                          # Original bands
-                                          'B11', 'B12', 'B2', 'B3', 'B4', 'B8',
-                                          # Spectral indices
-                                          'NDVI', 'NDWI', 'SR', 'EVI', 'SAVI',
-                                          # Band ratios (15 combinations for 6 bands)
-                                          'B11_B12_ratio', 'B11_B2_ratio', 'B11_B3_ratio', 'B11_B4_ratio', 'B11_B8_ratio',
-                                          'B12_B2_ratio', 'B12_B3_ratio', 'B12_B4_ratio', 'B12_B8_ratio',
-                                          'B2_B3_ratio', 'B2_B4_ratio', 'B2_B8_ratio',
-                                          'B3_B4_ratio', 'B3_B8_ratio',
-                                          'B4_B8_ratio',
-                                          # Polynomial features
-                                          'NDVI_pow2', 'EVI_pow2', 'SAVI_pow2'
-                                          ]
+                                                                  BANDS_20M = [
+                                                                  "B11",
+                                                                  "B12",
+                                                                  ]
+                                                                  
+                                                                  BANDS_ALL=BANDS_10M+BANDS_20M
+                                                                  bands_data = {}
+                                                                  metaData={}
+                                                                  for band_name in BANDS_ALL:
+                                                                        if band_name not in dicPath:
+                                                                              logger_workflow.debug("band_name "+band_name+" not found. Stopping treating folder "+str(folder),extra={'status': 'INFO'})
+                                                                              return
+                                                                        band_path = dicPath[band_name]
+                                                                        logger_workflow.debug("band_path "+str(band_path),extra={'status': 'DEBUG'})
+                                                                        with band_path.open('rb') as fileBand, rasterio.io.MemoryFile(fileBand) as memfile:
+                                                                              with memfile.open(sharing=False) as band_file:
+                                                                                    band_data   = band_file.read(1,masked=True)  # open the tif image as a numpy array
+                                                                                    band_data=band_data.filled(np.nan)
+                                                                                    metaData[band_name] = band_file.meta
+                                                                                    # Resize depending on the resolution
+                                                                                    if band_name in BANDS_20M:
+                                                                                          h=band_data.shape[0]
+                                                                                          w=band_data.shape[1]
+                                                                                          # Carry out a bicubic interpolation (TUB does exactly this)
+                                                                                          band_data = cv2.resize(band_data, dsize=(2*h, 2*w), interpolation=cv2.INTER_CUBIC)
+                                                                                          # We have already ignored the 60M ones, and we keep the 10M ones intact
+                                                                                    #logging.info("appending")
+                                                                                    bands_data[band_name] = band_data
+                                                                                    logger_workflow.debug("band_name "+band_name,extra={'status': 'DEBUG'})
+                                                                                    logger_workflow.debug("band_data shape "+str(band_data.shape),extra={'status': 'DEBUG'})
+                                                                        band_file.close()
+                                                                  value=pd.DataFrame()
+                                                                  h=None
+                                                                  w=None
+                                                                  for band_name in BANDS_ALL:
+                                                                        band_data=bands_data[band_name]
+                                                                        h_band=band_data.shape[0]
+                                                                        w_band=band_data.shape[1]
+                                                                        if h is None:
+                                                                              h=h_band
+                                                                        if w is None:
+                                                                              w=w_band
+                                                                        if h!=h_band or w!=w_band:
+                                                                              logger_workflow.debug("Different shape found for band "+band_name+" h "+str(h)+" w "+str(w)+" h_band "+str(h_band)+" w_band "+str(w_band)+" Stopping treating folder "+str(folder),extra={'status': 'INFO'})
+                                                                              return
+                                                                  for i in range(0,h):
+                                                                        for j in range(0,w):
+                                                                              dic={}
+                                                                              for band_name in BANDS_ALL:
+                                                                                    band_data=bands_data[band_name]
+                                                                                    dic[band_name]=band_data[i,j]
+                                                                              dic['x']=i
+                                                                              dic['y']=j
+                                                                              value=value.append(dic,ignore_index=True)
+                                                                  logger_workflow.debug(f"Processing {len(value)} samples...", extra={'status': 'DEBUG'})
+                                                                  value = calculate_spectral_indices(value)
+                                                                  value = calculate_band_ratios(value)
+                                                                  value = calculate_polynomial_features(value)
 
-                                          # Extract features in correct order
-                                          X = value[feature_names].values
-                                          print(f"Feature matrix shape: {X.shape}")
+                                                                  # Feature order (must match training)
+                                                                  feature_names = [
+                                                                  # Original bands
+                                                                  'B11', 'B12', 'B2', 'B3', 'B4', 'B8',
+                                                                  # Spectral indices
+                                                                  'NDVI', 'NDWI', 'SR', 'EVI', 'SAVI',
+                                                                  # Band ratios (15 combinations for 6 bands)
+                                                                  'B11_B12_ratio', 'B11_B2_ratio', 'B11_B3_ratio', 'B11_B4_ratio', 'B11_B8_ratio',
+                                                                  'B12_B2_ratio', 'B12_B3_ratio', 'B12_B4_ratio', 'B12_B8_ratio',
+                                                                  'B2_B3_ratio', 'B2_B4_ratio', 'B2_B8_ratio',
+                                                                  'B3_B4_ratio', 'B3_B8_ratio',
+                                                                  'B4_B8_ratio',
+                                                                  # Polynomial features
+                                                                  'NDVI_pow2', 'EVI_pow2', 'SAVI_pow2'
+                                                                  ]
 
-                                          # === Apply robust scaling ===
-                                          # During training, all features were scaled using robust scaling (no time features):
-                                          # scaled = (x - q1) / IQR
-                                          X_scaled = X.copy()
-                                          for i in range(X.shape[1]):  # Scale all features
-                                                fname = list(scaler_params['iqr'].keys())[i]
-                                                q1 = scaler_params['q1'][fname]
-                                                iqr = scaler_params['iqr'][fname]
-                                                X_scaled[:, i] = (X[:, i] - q1) / iqr
-                                          toInfer = []
-                                          for i in range(0,X_scaled.shape[0]):
-                                                dic={}
-                                                dic["i"]=i
-                                                dic["data"]=X_scaled[i:i+1,:].astype(np.float32)
-                                                toInfer.append(dic)
-                                          logger_workflow.debug('start inference', extra={'status': 'DEBUG'})
-                                          logger_workflow.debug('length '+str(len(toInfer)), extra={'status': 'DEBUG'})
-                                          asyncio.run(doInference(toInfer,logger_workflow))
-                                          logger_workflow.debug('inference done', extra={'status': 'DEBUG'})
-                                          resultArray=np.zeros((X_scaled.shape[0],1),dtype=np.float32)
-                                          for requestElem in toInfer:
-                                                result_subarray=requestElem["result"]
-                                                i=requestElem["i"]
-                                                resultArray[i,:]=result_subarray + target_mean - 0.5
-                                          logger_workflow.debug('array all done', extra={'status': 'DEBUG'})
+                                                                  # Extract features in correct order
+                                                                  X = value[feature_names].values
+                                                                  print(f"Feature matrix shape: {X.shape}")
 
-                                          df_result = pd.DataFrame(resultArray, columns=['cfactor'])
-                                          outputPath=cpOutput.joinpath(key+'-cfactor-result.csv')
-                                          logger_workflow.debug('csv writting', extra={'status': 'DEBUG'})
-                                          with outputPath.open('w') as outputFile:
-                                                df_result.to_csv(outputFile, index=False,header=True)
-                                          logger_workflow.debug('csv writting done', extra={'status': 'DEBUG'})
+                                                                  # === Apply robust scaling ===
+                                                                  # During training, all features were scaled using robust scaling (no time features):
+                                                                  # scaled = (x - q1) / IQR
+                                                                  X_scaled = X.copy()
+                                                                  for i in range(X.shape[1]):  # Scale all features
+                                                                        fname = list(scaler_params['iqr'].keys())[i]
+                                                                        q1 = scaler_params['q1'][fname]
+                                                                        iqr = scaler_params['iqr'][fname]
+                                                                        X_scaled[:, i] = (X[:, i] - q1) / iqr
+                                                                  toInfer = []
+                                                                  for i in range(0,X_scaled.shape[0]):
+                                                                        dic={}
+                                                                        dic["i"]=i
+                                                                        dic["data"]=X_scaled[i:i+1,:].astype(np.float32)
+                                                                        toInfer.append(dic)
+                                                                  logger_workflow.debug('start inference', extra={'status': 'DEBUG'})
+                                                                  logger_workflow.debug('length '+str(len(toInfer)), extra={'status': 'DEBUG'})
+                                                                  asyncio.run(doInference(toInfer,logger_workflow))
+                                                                  logger_workflow.debug('inference done', extra={'status': 'DEBUG'})
+                                                                  resultArray=np.zeros((X_scaled.shape[0],3),dtype=np.float32)
+                                                                  for requestElem in toInfer:
+                                                                        result_subarray=requestElem["result"]
+                                                                        i=requestElem["i"]
+                                                                        resultArray[i,0]=result_subarray + target_mean - 0.5
+                                                                        resultArray[i,1]=requestElem["x"]
+                                                                        resultArray[i,2]=requestElem["y"]
+                                                                  logger_workflow.debug('array all done', extra={'status': 'DEBUG'})
+
+                                                                  df_result = pd.DataFrame(resultArray, columns=['cfactor','x','y'])
+                                                                  outputPath=cpOutput.joinpath(key+'-cfactor-result.csv')
+                                                                  logger_workflow.debug('csv writting', extra={'status': 'DEBUG'})
+                                                                  with outputPath.open('w') as outputFile:
+                                                                        df_result.to_csv(outputFile, index=False,header=True)
+                                                                  logger_workflow.debug('csv writting done', extra={'status': 'DEBUG'})
+
+                                                                  outputPath=cpOutput.joinpath(key+'-cfactor-result.jp2')
+
+                                                                  array=np.zeros((h,w),dtype=np.float32)
+                                                                  for i in range(0,w):
+                                                                        for j in range(0,h):
+                                                                              array[j,i]=resultArray[j*w+i,0]
+
+                                                                  with outputPath.open('wb') as outputFile,rasterio.io.MemoryFile() as memfile:
+                                                                        #with rasterio.open(outputFile,mode='w',**data["meta"][ALL_BANDS[band_number]]) as file2:
+                                                                        with memfile.open(driver="JP2OpenJPEG",width=w,height=h,count=1,dtype="fp32",crs=metaData["B3"]["crs"],transform=metaData["B3"]["transform"]) as file2:
+                                                                              file2.write(array, indexes=1)
+                                                                        outputFile.write(memfile.read())
+                                    def recurse_folders(cp):
+                                          for folder in cp.iterdir():
+                                                treatFolder(folder)
+                                                recurse_folders(folder)
+
+                                    recurse_folders(cp)
                                     
                                     logger_workflow.debug('Output written', extra={'status': 'DEBUG'})
                                     logger_workflow.debug('Connecting to Kafka', extra={'status': 'DEBUG'})
