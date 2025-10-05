@@ -399,7 +399,7 @@ def create_app():
                                                                   logger_workflow.debug('start writing output to '+str(outputPath), extra={'status': 'DEBUG'})
                                                                   with outputPath.open('wb') as outputFile,rasterio.io.MemoryFile() as memfile:
                                                                         #with rasterio.open(outputFile,mode='w',**data["meta"][ALL_BANDS[band_number]]) as file2:
-                                                                        with memfile.open(driver="JP2OpenJPEG",width=w,height=h,count=1,dtype="fp32",crs=metaData["B3"]["crs"],transform=metaData["B3"]["transform"]) as file2:
+                                                                        with memfile.open(driver="JP2OpenJPEG",width=w,height=h,count=1,dtype="fp32",crs=metaData["B03"]["crs"],transform=metaData["B03"]["transform"]) as file2:
                                                                               file2.write(array, indexes=1)
                                                                         outputFile.write(memfile.read())
                                     def recurse_folders(cp):
