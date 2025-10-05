@@ -353,7 +353,7 @@ def create_app():
                                                                               inputs=[]
                                                                               outputs=[]
                                                                               inputs.append(httpclient.InferInput('input__0',data.shape, "FP32"))
-                                                                              inputs[0].set_data_from_numpy(data, binary_data=True)
+                                                                              inputs[0].set_data_from_numpy(data.astype(np.float32), binary_data=True)
                                                                               outputs.append(httpclient.InferRequestedOutput('output__0', binary_data=True))
                                                                               results = await triton_client.infer('cfactor2',inputs,outputs=outputs)
                                                                               await triton_client.close()
