@@ -320,7 +320,7 @@ def create_app():
                                                                         # Feature order (must match training)
                                                                         feature_names = [
                                                                         # Original bands
-                                                                        'B11', 'B12', 'B2', 'B03', 'B04', 'B08',
+                                                                        'B11', 'B12', 'B2', 'B3', 'B4', 'B8',
                                                                         # Spectral indices
                                                                         'NDVI', 'NDWI', 'SR', 'EVI', 'SAVI',
                                                                         # Band ratios (15 combinations for 6 bands)
