@@ -6,7 +6,7 @@ default_context:
   include_service: "yes"
   service_name: "cfactor"
   service_image_repo: "registry.apps.eo4eu.eu/eo4eu/eo4eu-inference-server/uc5/eo4eu-cfactor"
-  service_image_tag: "53142a3d6a54f73e57e4691a0bb8999c73f57ec2"
+  service_image_tag: "ea4d462dabe5034254e90af7b0524b6d11d67ad9"
   service_image_pull_policy: "Always"
   service_image_secret: "uc5-registry"
   service_container_port: "8080"
