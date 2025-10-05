@@ -346,7 +346,7 @@ def create_app():
                                                                               q1 = scaler_params['q1'][fname]
                                                                               iqr = scaler_params['iqr'][fname]
                                                                               X_scaled[:, i] = (X[:, i] - q1) / iqr
-                                                                        return X_scaled, value[['x', 'y']].values
+                                                                        return X_scaled, value[['x']].values, value[['y']].values
                                                                   async def do_inference(data,sem):
                                                                         triton_client = httpclient.InferenceServerClient(url="default-inference.uc5.svc.cineca-inference-server.local", verbose=False,conn_timeout=10000000,conn_limit=None,ssl=False)
                                                                         async with sem:
