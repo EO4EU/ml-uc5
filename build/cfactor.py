@@ -361,7 +361,11 @@ def create_app():
                                                                   
                                                                   async def handle_one(data,sem):
                                                                         v1,v2,v3 = process(data)
-                                                                        result = await do_inference(v1,sem)
+                                                                        try:
+                                                                              result = await do_inference(v1,sem)
+                                                                        except Exception as e:
+                                                                              asyncio.sleep(1)
+                                                                              return await handle_one(data,sem)
                                                                         return (result,v2,v3)
 
                                                                   async def run_pipeline(max_concurrent_tasks=10,max_in_flight=200):
