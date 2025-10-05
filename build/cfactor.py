@@ -271,7 +271,6 @@ def create_app():
                                                                                     logger_workflow.debug("band_name "+band_name,extra={'status': 'DEBUG'})
                                                                                     logger_workflow.debug("band_data shape "+str(band_data.shape),extra={'status': 'DEBUG'})
                                                                         band_file.close()
-                                                                  listvalue=[]
                                                                   h=None
                                                                   w=None
                                                                   for band_name in BANDS_ALL:
@@ -285,6 +284,14 @@ def create_app():
                                                                         if h!=h_band or w!=w_band:
                                                                               logger_workflow.debug("Different shape found for band "+band_name+" h "+str(h)+" w "+str(w)+" h_band "+str(h_band)+" w_band "+str(w_band)+" Stopping treating folder "+str(folder),extra={'status': 'INFO'})
                                                                               return
+                                                                  bands_data['B3']=bands_data['B03']
+                                                                  bands_data['B4']=bands_data['B04']
+                                                                  bands_data['B2']=bands_data['B02']
+                                                                  bands_data['B8']=bands_data['B08']
+                                                                  del bands_data['B03']
+                                                                  del bands_data['B04']
+                                                                  del bands_data['B02']
+                                                                  del bands_data['B08']
                                                                   def data_generator():
                                                                         listvalue=[]
                                                                         for i in range(0,h):
@@ -312,7 +319,7 @@ def create_app():
                                                                         # Feature order (must match training)
                                                                         feature_names = [
                                                                         # Original bands
-                                                                        'B11', 'B12', 'B2', 'B3', 'B4', 'B8',
+                                                                        'B11', 'B12', 'B2', 'B03', 'B04', 'B08',
                                                                         # Spectral indices
                                                                         'NDVI', 'NDWI', 'SR', 'EVI', 'SAVI',
                                                                         # Band ratios (15 combinations for 6 bands)
