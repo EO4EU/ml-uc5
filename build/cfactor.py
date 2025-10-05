@@ -52,6 +52,49 @@ import joblib
 
 import cv2
 
+class ThroughputMeter:
+    def __init__(self, report_every=1.0):
+        self.report_every = report_every
+        self._t0 = time.perf_counter()
+        self._last_t = self._t0
+        self.total_reqs = 0          # completed Triton calls
+        self.total_items = 0         # rows predicted (sum batch sizes)
+        self._last_reqs = 0
+        self._last_items = 0
+        self._stop = asyncio.Event()
+
+    def update(self, batch_size: int):
+        # call once per COMPLETED Triton inference
+        self.total_reqs += 1
+        self.total_items += batch_size
+
+    async def reporter(self):
+        while not self._stop.is_set():
+            await asyncio.sleep(self.report_every)
+            now = time.perf_counter()
+            dt = now - self._last_t
+            if dt <= 0:
+                continue
+            # windowed rates (since last report)
+            reqs_window = self.total_reqs - self._last_reqs
+            items_window = self.total_items - self._last_items
+            reqs_per_s = reqs_window / dt
+            items_per_s = items_window / dt
+            # overall averages
+            total_dt = now - self._t0
+            avg_reqs = self.total_reqs / total_dt if total_dt > 0 else 0.0
+            avg_items = self.total_items / total_dt if total_dt > 0 else 0.0
+
+            print(f"[throughput] {reqs_per_s:.2f} req/s, {items_per_s:.0f} items/s  "
+                  f"(avg: {avg_reqs:.2f} req/s, {avg_items:.0f} items/s)")
+
+            self._last_t = now
+            self._last_reqs = self.total_reqs
+            self._last_items = self.total_items
+
+    def stop(self):
+        self._stop.set()
+
 def create_app():
 
       app = Flask(__name__)
@@ -335,7 +378,6 @@ def create_app():
 
                                                                         # Extract features in correct order
                                                                         X = value[feature_names].values
-                                                                        print(f"Feature matrix shape: {X.shape}")
 
                                                                         # === Apply robust scaling ===
                                                                         # During training, all features were scaled using robust scaling (no time features):
@@ -364,32 +406,41 @@ def create_app():
                                                                         try:
                                                                               result = await do_inference(v1,sem)
                                                                         except Exception as e:
-                                                                              asyncio.sleep(1)
+                                                                              await asyncio.sleep(1)
                                                                               return await handle_one(data,sem)
                                                                         return (result,v2,v3)
 
-                                                                  async def run_pipeline(max_concurrent_tasks=10,max_in_flight=200):
+                                                                  async def run_pipeline(max_concurrent_tasks=30,max_in_flight=400):
                                                                         sem = asyncio.Semaphore(max_concurrent_tasks)
                                                                         tasks = set()
+                                                                        meter = ThroughputMeter(report_every=1.0)
+                                                                        reporter_task = asyncio.create_task(meter.reporter())
                                                                         array=np.zeros((h,w),dtype=np.float32)
-                                                                        for data in data_generator():
-                                                                              t = asyncio.create_task(handle_one(data,sem))
-                                                                              tasks.add(t)
+                                                                        try:
+                                                                              for data in data_generator():
+                                                                                    t = asyncio.create_task(handle_one(data,sem))
+                                                                                    tasks.add(t)
 
-                                                                              if len(tasks) >= max_in_flight:
-                                                                                    _done, tasks = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+                                                                                    if len(tasks) >= max_in_flight:
+                                                                                          _done, tasks = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+                                                                                          for fut in _done:
+                                                                                                result,x,y = fut.result()
+                                                                                                meter.update(batch_size=result.shape[0])
+                                                                                                for i in range(0,result.shape[0]):
+                                                                                                      result_subarray=result[i]
+                                                                                                      array[x[i,0],y[i,0]]=result_subarray + target_mean - 0.5
+                                                                              if tasks:
+                                                                                    _done, tasks = await asyncio.wait(tasks)
                                                                                     for fut in _done:
                                                                                           result,x,y = fut.result()
+                                                                                          meter.update(batch_size=result.shape[0])
                                                                                           for i in range(0,result.shape[0]):
                                                                                                 result_subarray=result[i]
-                                                                                                array[x,y]=result_subarray + target_mean - 0.5
-                                                                        if tasks:
-                                                                              _done, tasks = await asyncio.wait(tasks)
-                                                                              for fut in _done:
-                                                                                    result,x,y = fut.result()
-                                                                                    for i in range(0,result.shape[0]):
-                                                                                          result_subarray=result[i]
-                                                                                          array[x,y]=result_subarray + target_mean - 0.5
+                                                                                                array[x[i,0],y[i,0]]=result_subarray + target_mean - 0.5
+                                                                        finally:
+                                                                              meter.stop()
+                                                                              await reporter_task
+                                                                        logger_workflow.debug(f"[summary] total calls: {meter.total_reqs}, total items: {meter.total_items}", extra={'status': 'DEBUG'})
                                                                         return array
                                                                   logger_workflow.debug('start processing', extra={'status': 'DEBUG'})
                                                                   array = asyncio.run(run_pipeline())
@@ -399,7 +450,7 @@ def create_app():
                                                                   logger_workflow.debug('start writing output to '+str(outputPath), extra={'status': 'DEBUG'})
                                                                   with outputPath.open('wb') as outputFile,rasterio.io.MemoryFile() as memfile:
                                                                         #with rasterio.open(outputFile,mode='w',**data["meta"][ALL_BANDS[band_number]]) as file2:
-                                                                        with memfile.open(driver="JP2OpenJPEG",width=w,height=h,count=1,dtype="fp32",crs=metaData["B03"]["crs"],transform=metaData["B03"]["transform"]) as file2:
+                                                                        with memfile.open(driver="JP2OpenJPEG",width=w,height=h,count=1,dtype="float32",crs=metaData["B03"]["crs"],transform=metaData["B03"]["transform"]) as file2:
                                                                               file2.write(array, indexes=1)
                                                                         outputFile.write(memfile.read())
                                     def recurse_folders(cp):
@@ -441,103 +492,5 @@ def create_app():
                   },500)
             return response
 
-      # This function is used to do the inference on the data.
-      # It will connect to the triton server and send the data to it.
-      # The result will be returned.
-      # The data should be a numpy array of shape (1,10,120,120) and type float32.
-      # The result will be a json with the following fields:
-      # model_name : The name of the model used.
-      # outputs : The result of the inference.
-      async def doInference(toInfer,logger_workflow):
-
-            triton_client = httpclient.InferenceServerClient(url="default-inference.uc5.svc.cineca-inference-server.local", verbose=False,conn_timeout=10000000,conn_limit=None,ssl=False)
-            nb_Created=0
-            nb_InferenceDone=0
-            nb_Postprocess=0
-            nb_done_instance=0
-            list_postprocess=set()
-            list_task=set()
-            last_throw=0
-            async def consume(task):
-                  try:
-                        if task[0]==1:
-                              count=task[1]
-                              inputs=[]
-                              outputs=[]
-                              inputs.append(httpclient.InferInput('input__0',toInfer[count]["data"].shape, "FP32"))
-                              inputs[0].set_data_from_numpy(toInfer[count]["data"], binary_data=True)
-                              outputs.append(httpclient.InferRequestedOutput('output__0', binary_data=True))
-                              results = await triton_client.infer('cfactor2',inputs,outputs=outputs)
-                              return (task,results)
-                        if task[0]==255:
-                              count=task[1]
-                              inputs = []
-                              outputs = []
-                              input=np.zeros([255,toInfer[count]["data"].shape[1]],dtype=np.float32)
-                              for i in range(0,255):
-                                    input[i]=toInfer[count+i]["data"][0]
-                              inputs.append(httpclient.InferInput('input__0',input.shape, "FP32"))
-                              inputs[0].set_data_from_numpy(input, binary_data=True)
-                              outputs.append(httpclient.InferRequestedOutput('output__0', binary_data=True))
-                              results = await triton_client.infer('cfactor2',inputs,outputs=outputs)
-                              return (task,results)
-                  except Exception as e:
-                        logger_workflow.debug('Got exception in inference '+str(e)+'\n'+traceback.format_exc(), extra={'status': 'WARNING'})
-                        nonlocal last_throw
-                        last_throw=time.time()
-                        return await consume(task)
-            
-            async def postprocess(task,results):
-                  if task[0]==1:
-                        result=results.as_numpy('output__0')[0]
-                        toInfer[task[1]]["result"]=result
-                  if task[0]==255:
-                        result=results.as_numpy('output__0')
-                        for i in range(0,255):
-                              toInfer[task[1]+i]["result"]=result[i]
-                        
-
-            def postprocessTask(task):
-                  list_task.discard(task)
-                  new_task=asyncio.create_task(postprocess(*task.result()))
-                  list_postprocess.add(new_task)
-                  def postprocessTaskDone(task2):
-                        nonlocal nb_Postprocess
-                        nb_Postprocess+=1
-                        nonlocal nb_done_instance
-                        nb_done_instance+=task.result()[0][0]
-                        list_postprocess.discard(task2)
-                  new_task.add_done_callback(postprocessTaskDone)
-                  nonlocal nb_InferenceDone
-                  nb_InferenceDone+=1
-
-
-            def producer():
-                  total=len(toInfer)
-                  count=0
-                  while total-count>=255:
-                        yield (255,count)
-                        count=count+255
-                  while total-count>=1:
-                        yield (1,count)
-                        count=count+1
-            
-            last_shown=time.time()
-            start=time.time()-60
-            for item in producer():
-                  while time.time()-last_throw<30 or nb_Created-nb_InferenceDone>(time.time()-start)*5 or nb_Postprocess-nb_InferenceDone>(time.time()-start)*5:
-                        await asyncio.sleep(0)
-                  task=asyncio.create_task(consume(item))
-                  list_task.add(task)
-                  task.add_done_callback(postprocessTask)
-                  nb_Created+=1
-                  if time.time()-last_shown>60:
-                        last_shown=time.time()
-                        logger_workflow.info('done instance '+str(nb_done_instance)+'Inference done value '+str(nb_InferenceDone)+' postprocess done '+str(nb_Postprocess)+ ' created '+str(nb_Created), extra={'status': 'DEBUG'})
-            while nb_InferenceDone-nb_Created>0 or nb_Postprocess-nb_InferenceDone>0:
-                  await asyncio.sleep(0)
-            await asyncio.gather(*list_task,*list_postprocess)
-            logger_workflow.info('Inference done',extra={'status':'DEBUG'})
-            await triton_client.close()
       return app
       
