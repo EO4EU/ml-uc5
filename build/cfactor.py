@@ -285,83 +285,106 @@ def create_app():
                                                                         if h!=h_band or w!=w_band:
                                                                               logger_workflow.debug("Different shape found for band "+band_name+" h "+str(h)+" w "+str(w)+" h_band "+str(h_band)+" w_band "+str(w_band)+" Stopping treating folder "+str(folder),extra={'status': 'INFO'})
                                                                               return
-                                                                  for i in range(0,h):
-                                                                        for j in range(0,w):
-                                                                              dic={}
-                                                                              for band_name in BANDS_ALL:
-                                                                                    band_data=bands_data[band_name]
-                                                                                    dic[band_name]=band_data[i,j]
-                                                                              dic['x']=i
-                                                                              dic['y']=j
-                                                                              listvalue.append(dic)
-                                                                  value=pd.DataFrame(listvalue)
-                                                                  logger_workflow.debug(f"Processing {len(value)} samples...", extra={'status': 'DEBUG'})
-                                                                  value = calculate_spectral_indices(value)
-                                                                  value = calculate_band_ratios(value)
-                                                                  value = calculate_polynomial_features(value)
+                                                                  def data_generator():
+                                                                        listvalue=[]
+                                                                        for i in range(0,h):
+                                                                              for j in range(0,w):
+                                                                                    dic={}
+                                                                                    for band_name in BANDS_ALL:
+                                                                                          band_data=bands_data[band_name]
+                                                                                          dic[band_name]=band_data[i,j]
+                                                                                    dic['x']=i
+                                                                                    dic['y']=j
+                                                                                    listvalue.append(dic)
+                                                                                    if len(listvalue)>=255:
+                                                                                          yield listvalue
+                                                                                          listvalue=[]
+                                                                        if len(listvalue)>0:
+                                                                              yield listvalue
+                                                                              listvalue=[]
 
-                                                                  # Feature order (must match training)
-                                                                  feature_names = [
-                                                                  # Original bands
-                                                                  'B11', 'B12', 'B2', 'B3', 'B4', 'B8',
-                                                                  # Spectral indices
-                                                                  'NDVI', 'NDWI', 'SR', 'EVI', 'SAVI',
-                                                                  # Band ratios (15 combinations for 6 bands)
-                                                                  'B11_B12_ratio', 'B11_B2_ratio', 'B11_B3_ratio', 'B11_B4_ratio', 'B11_B8_ratio',
-                                                                  'B12_B2_ratio', 'B12_B3_ratio', 'B12_B4_ratio', 'B12_B8_ratio',
-                                                                  'B2_B3_ratio', 'B2_B4_ratio', 'B2_B8_ratio',
-                                                                  'B3_B4_ratio', 'B3_B8_ratio',
-                                                                  'B4_B8_ratio',
-                                                                  # Polynomial features
-                                                                  'NDVI_pow2', 'EVI_pow2', 'SAVI_pow2'
-                                                                  ]
+                                                                  def process(listvalue):
+                                                                        value=pd.DataFrame(listvalue)
+                                                                        value = calculate_spectral_indices(value)
+                                                                        value = calculate_band_ratios(value)
+                                                                        value = calculate_polynomial_features(value)
 
-                                                                  # Extract features in correct order
-                                                                  X = value[feature_names].values
-                                                                  print(f"Feature matrix shape: {X.shape}")
+                                                                        # Feature order (must match training)
+                                                                        feature_names = [
+                                                                        # Original bands
+                                                                        'B11', 'B12', 'B2', 'B3', 'B4', 'B8',
+                                                                        # Spectral indices
+                                                                        'NDVI', 'NDWI', 'SR', 'EVI', 'SAVI',
+                                                                        # Band ratios (15 combinations for 6 bands)
+                                                                        'B11_B12_ratio', 'B11_B2_ratio', 'B11_B3_ratio', 'B11_B4_ratio', 'B11_B8_ratio',
+                                                                        'B12_B2_ratio', 'B12_B3_ratio', 'B12_B4_ratio', 'B12_B8_ratio',
+                                                                        'B2_B3_ratio', 'B2_B4_ratio', 'B2_B8_ratio',
+                                                                        'B3_B4_ratio', 'B3_B8_ratio',
+                                                                        'B4_B8_ratio',
+                                                                        # Polynomial features
+                                                                        'NDVI_pow2', 'EVI_pow2', 'SAVI_pow2'
+                                                                        ]
 
-                                                                  # === Apply robust scaling ===
-                                                                  # During training, all features were scaled using robust scaling (no time features):
-                                                                  # scaled = (x - q1) / IQR
-                                                                  X_scaled = X.copy()
-                                                                  for i in range(X.shape[1]):  # Scale all features
-                                                                        fname = list(scaler_params['iqr'].keys())[i]
-                                                                        q1 = scaler_params['q1'][fname]
-                                                                        iqr = scaler_params['iqr'][fname]
-                                                                        X_scaled[:, i] = (X[:, i] - q1) / iqr
-                                                                  toInfer = []
-                                                                  for i in range(0,X_scaled.shape[0]):
-                                                                        dic={}
-                                                                        dic["i"]=i
-                                                                        dic["data"]=X_scaled[i:i+1,:].astype(np.float32)
-                                                                        toInfer.append(dic)
-                                                                  logger_workflow.debug('start inference', extra={'status': 'DEBUG'})
-                                                                  logger_workflow.debug('length '+str(len(toInfer)), extra={'status': 'DEBUG'})
-                                                                  asyncio.run(doInference(toInfer,logger_workflow))
-                                                                  logger_workflow.debug('inference done', extra={'status': 'DEBUG'})
-                                                                  resultArray=np.zeros((X_scaled.shape[0],3),dtype=np.float32)
-                                                                  for requestElem in toInfer:
-                                                                        result_subarray=requestElem["result"]
-                                                                        i=requestElem["i"]
-                                                                        resultArray[i,0]=result_subarray + target_mean - 0.5
-                                                                        resultArray[i,1]=requestElem["x"]
-                                                                        resultArray[i,2]=requestElem["y"]
-                                                                  logger_workflow.debug('array all done', extra={'status': 'DEBUG'})
+                                                                        # Extract features in correct order
+                                                                        X = value[feature_names].values
+                                                                        print(f"Feature matrix shape: {X.shape}")
 
-                                                                  df_result = pd.DataFrame(resultArray, columns=['cfactor','x','y'])
-                                                                  outputPath=cpOutput.joinpath(key+'-cfactor-result.csv')
-                                                                  logger_workflow.debug('csv writting', extra={'status': 'DEBUG'})
-                                                                  with outputPath.open('w') as outputFile:
-                                                                        df_result.to_csv(outputFile, index=False,header=True)
-                                                                  logger_workflow.debug('csv writting done', extra={'status': 'DEBUG'})
+                                                                        # === Apply robust scaling ===
+                                                                        # During training, all features were scaled using robust scaling (no time features):
+                                                                        # scaled = (x - q1) / IQR
+                                                                        X_scaled = X.copy()
+                                                                        for i in range(X.shape[1]):  # Scale all features
+                                                                              fname = list(scaler_params['iqr'].keys())[i]
+                                                                              q1 = scaler_params['q1'][fname]
+                                                                              iqr = scaler_params['iqr'][fname]
+                                                                              X_scaled[:, i] = (X[:, i] - q1) / iqr
+                                                                        return X_scaled, value[['x', 'y']].values
+                                                                  async def do_inference(data,sem):
+                                                                        triton_client = httpclient.InferenceServerClient(url="default-inference.uc5.svc.cineca-inference-server.local", verbose=False,conn_timeout=10000000,conn_limit=None,ssl=False)
+                                                                        async with sem:
+                                                                              inputs=[]
+                                                                              outputs=[]
+                                                                              inputs.append(httpclient.InferInput('input__0',data.shape, "FP32"))
+                                                                              inputs[0].set_data_from_numpy(data, binary_data=True)
+                                                                              outputs.append(httpclient.InferRequestedOutput('output__0', binary_data=True))
+                                                                              results = await triton_client.infer('cfactor2',inputs,outputs=outputs)
+                                                                              await triton_client.close()
+                                                                              return results.as_numpy('output__0')
+                                                                  
+                                                                  async def handle_one(data,sem):
+                                                                        v1,v2,v3 = process(data)
+                                                                        result = await do_inference(v1,sem)
+                                                                        return (result,v2,v3)
 
-                                                                  outputPath=cpOutput.joinpath(key+'-cfactor-result.jp2')
+                                                                  async def run_pipeline(max_concurrent_tasks=10,max_in_flight=200):
+                                                                        sem = asyncio.Semaphore(max_concurrent_tasks)
+                                                                        tasks = set()
+                                                                        array=np.zeros((h,w),dtype=np.float32)
+                                                                        for data in data_generator():
+                                                                              t = asyncio.create_task(handle_one(data,sem))
+                                                                              tasks.add(t)
 
-                                                                  array=np.zeros((h,w),dtype=np.float32)
-                                                                  for i in range(0,w):
-                                                                        for j in range(0,h):
-                                                                              array[j,i]=resultArray[j*w+i,0]
+                                                                              if len(tasks) >= max_in_flight:
+                                                                                    _done, tasks = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+                                                                                    for fut in _done:
+                                                                                          result,x,y = fut.result()
+                                                                                          for i in range(0,result.shape[0]):
+                                                                                                result_subarray=result[i]
+                                                                                                array[x,y]=result_subarray + target_mean - 0.5
+                                                                        if tasks:
+                                                                              _done, tasks = await asyncio.wait(tasks)
+                                                                              for fut in _done:
+                                                                                    result,x,y = fut.result()
+                                                                                    for i in range(0,result.shape[0]):
+                                                                                          result_subarray=result[i]
+                                                                                          array[x,y]=result_subarray + target_mean - 0.5
+                                                                        return array
+                                                                  logger_workflow.debug('start processing', extra={'status': 'DEBUG'})
+                                                                  array = asyncio.run(run_pipeline())
+                                                                  logger_workflow.debug('processing done', extra={'status': 'DEBUG'})
 
+                                                                  outputPath=cpOutput.joinpath(folder.name+"_cfactor.jp2")
+                                                                  logger_workflow.debug('start writing output to '+str(outputPath), extra={'status': 'DEBUG'})
                                                                   with outputPath.open('wb') as outputFile,rasterio.io.MemoryFile() as memfile:
                                                                         #with rasterio.open(outputFile,mode='w',**data["meta"][ALL_BANDS[band_number]]) as file2:
                                                                         with memfile.open(driver="JP2OpenJPEG",width=w,height=h,count=1,dtype="fp32",crs=metaData["B3"]["crs"],transform=metaData["B3"]["transform"]) as file2:
