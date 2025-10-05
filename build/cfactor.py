@@ -292,6 +292,7 @@ def create_app():
                                                                   del bands_data['B04']
                                                                   del bands_data['B02']
                                                                   del bands_data['B08']
+                                                                  BANDS_ALL=['B11','B12','B2','B3','B4','B8']
                                                                   def data_generator():
                                                                         listvalue=[]
                                                                         for i in range(0,h):
