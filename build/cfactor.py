@@ -446,11 +446,11 @@ def create_app():
                                                                   array = asyncio.run(run_pipeline())
                                                                   logger_workflow.debug('processing done', extra={'status': 'DEBUG'})
 
-                                                                  outputPath=cpOutput.joinpath(folder.name+"_cfactor.jp2")
+                                                                  outputPath=cpOutput.joinpath(folder.name+"_cfactor.tiff")
                                                                   logger_workflow.debug('start writing output to '+str(outputPath), extra={'status': 'DEBUG'})
                                                                   with outputPath.open('wb') as outputFile,rasterio.io.MemoryFile() as memfile:
                                                                         #with rasterio.open(outputFile,mode='w',**data["meta"][ALL_BANDS[band_number]]) as file2:
-                                                                        with memfile.open(driver="JP2OpenJPEG",width=w,height=h,count=1,dtype="float32",crs=metaData["B03"]["crs"],transform=metaData["B03"]["transform"]) as file2:
+                                                                        with memfile.open(driver="GTiff",width=w,height=h,count=1,dtype="float32",crs=metaData["B03"]["crs"],transform=metaData["B03"]["transform"],compress='ZSTD') as file2:
                                                                               file2.write(array, indexes=1)
                                                                         outputFile.write(memfile.read())
                                     def recurse_folders(cp):
