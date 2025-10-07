@@ -419,6 +419,7 @@ def create_app():
                                                                                     # SCL value indicating snow or ice
                                                                                     return scl == 11
                                                                               print('result shape:', result.shape)
+                                                                              print('v4 shape:', v4.shape)
                                                                               result = np.where(np.vectorize(is_cloud)(v4), -1, result)
                                                                               print('after cloud:', result.shape)
                                                                               result = np.where(np.vectorize(is_water)(v4), 0, result)
