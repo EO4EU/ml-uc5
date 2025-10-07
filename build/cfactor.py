@@ -422,6 +422,7 @@ def create_app():
                                                                               result = np.where(np.vectorize(is_water)(v4), 0, result)
                                                                               result = np.where(np.vectorize(no_data_or_invalid)(v4), -1, result)
                                                                               result = np.where(np.vectorize(is_ice)(v4), 0, result)
+                                                                              print(result)
 
                                                                         except Exception as e:
                                                                               await asyncio.sleep(1)
