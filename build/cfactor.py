@@ -418,12 +418,13 @@ def create_app():
                                                                               def is_ice(scl):
                                                                                     # SCL value indicating snow or ice
                                                                                     return scl == 11
+                                                                              print('result shape:', result.shape)
                                                                               result = np.where(np.vectorize(is_cloud)(v4), -1, result)
+                                                                              print('after cloud:', result.shape)
                                                                               result = np.where(np.vectorize(is_water)(v4), 0, result)
                                                                               result = np.where(np.vectorize(no_data_or_invalid)(v4), -1, result)
                                                                               result = np.where(np.vectorize(is_ice)(v4), 0, result)
-                                                                              print(result)
-
+                                                                              print('final:', result.shape)      
                                                                         except Exception as e:
                                                                               await asyncio.sleep(1)
                                                                               return await handle_one(data,sem)
@@ -447,6 +448,8 @@ def create_app():
                                                                                                 meter.update(batch_size=result.shape[0])
                                                                                                 for i in range(0,result.shape[0]):
                                                                                                       result_subarray=result[i]
+                                                                                                      print('result_subarray shape:', result_subarray.shape)
+                                                                                                      print('result_subarray:', result_subarray)
                                                                                                       array[x[i,0],y[i,0]]=result_subarray + target_mean - 0.5
                                                                               if tasks:
                                                                                     _done, tasks = await asyncio.wait(tasks)
