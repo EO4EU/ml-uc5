@@ -62,11 +62,15 @@ class ThroughputMeter:
         self._last_reqs = 0
         self._last_items = 0
         self._stop = asyncio.Event()
+        self._inflight = 0
+        self._concurrent = 0
 
-    def update(self, batch_size: int):
+    def update(self, batch_size: int, concurrent: int = 1, inflight: int = 1):
         # call once per COMPLETED Triton inference
         self.total_reqs += 1
         self.total_items += batch_size
+        self._concurrent = concurrent
+        self._inflight = inflight
 
     async def reporter(self):
         while not self._stop.is_set():
@@ -86,7 +90,7 @@ class ThroughputMeter:
             avg_items = self.total_items / total_dt if total_dt > 0 else 0.0
 
             print(f"[throughput] {reqs_per_s:.2f} req/s, {items_per_s:.0f} items/s  "
-                  f"(avg: {avg_reqs:.2f} req/s, {avg_items:.0f} items/s)")
+                  f"(avg: {avg_reqs:.2f} req/s, {avg_items:.0f} items/s) concurrent: {self._concurrent} inflight: {self._inflight}")
 
             self._last_t = now
             self._last_reqs = self.total_reqs
@@ -428,7 +432,7 @@ def create_app():
                                                                               return await handle_one(data,sem)
                                                                         return (result,v2,v3)
 
-                                                                  async def run_pipeline(max_concurrent_tasks=120,max_in_flight=1200):
+                                                                  async def run_pipeline(max_concurrent_tasks=60,max_in_flight=600):
                                                                         sem = asyncio.Semaphore(max_concurrent_tasks)
                                                                         tasks = set()
                                                                         meter = ThroughputMeter(report_every=1.0)
@@ -443,7 +447,7 @@ def create_app():
                                                                                           _done, tasks = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
                                                                                           for fut in _done:
                                                                                                 result,x,y = fut.result()
-                                                                                                meter.update(batch_size=result.shape[0])
+                                                                                                meter.update(batch_size=result.shape[0], concurrent=len(tasks), inflight=sem._value)
                                                                                                 for i in range(0,result.shape[0]):
                                                                                                       result_subarray=result[i]
                                                                                                       array[x[i,0],y[i,0]]=result_subarray + target_mean - 0.5
@@ -451,7 +455,7 @@ def create_app():
                                                                                     _done, tasks = await asyncio.wait(tasks)
                                                                                     for fut in _done:
                                                                                           result,x,y = fut.result()
-                                                                                          meter.update(batch_size=result.shape[0])
+                                                                                          meter.update(batch_size=result.shape[0], concurrent=len(tasks), inflight=sem._value)
                                                                                           for i in range(0,result.shape[0]):
                                                                                                 result_subarray=result[i]
                                                                                                 array[x[i,0],y[i,0]]=result_subarray + target_mean - 0.5
