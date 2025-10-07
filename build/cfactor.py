@@ -352,7 +352,7 @@ def create_app():
                                                                                     dic['x']=i
                                                                                     dic['y']=j
                                                                                     listvalue.append(dic)
-                                                                                    if len(listvalue)>=255:
+                                                                                    if len(listvalue)>=10000:
                                                                                           yield listvalue
                                                                                           listvalue=[]
                                                                         if len(listvalue)>0:
