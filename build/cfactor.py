@@ -286,6 +286,7 @@ def create_app():
                                                                   BANDS_20M = [
                                                                   "B11",
                                                                   "B12",
+                                                                  "SCL"
                                                                   ]
                                                                   
                                                                   BANDS_ALL=BANDS_10M+BANDS_20M
@@ -335,7 +336,7 @@ def create_app():
                                                                   del bands_data['B04']
                                                                   del bands_data['B02']
                                                                   del bands_data['B08']
-                                                                  BANDS_ALL=['B11','B12','B2','B3','B4','B8']
+                                                                  BANDS_ALL=['B11','B12','B2','B3','B4','B8','SCL']
                                                                   def data_generator():
                                                                         listvalue=[]
                                                                         for i in range(0,h):
@@ -388,7 +389,7 @@ def create_app():
                                                                               q1 = scaler_params['q1'][fname]
                                                                               iqr = scaler_params['iqr'][fname]
                                                                               X_scaled[:, i] = (X[:, i] - q1) / iqr
-                                                                        return X_scaled, value[['x']].values, value[['y']].values
+                                                                        return X_scaled, value[['x']].values, value[['y']].values, value[['SCL']].values
                                                                   async def do_inference(data,sem):
                                                                         triton_client = httpclient.InferenceServerClient(url="default-inference.uc5.svc.cineca-inference-server.local", verbose=False,conn_timeout=10000000,conn_limit=None,ssl=False)
                                                                         async with sem:
@@ -402,15 +403,32 @@ def create_app():
                                                                               return results.as_numpy('output__0')
                                                                   
                                                                   async def handle_one(data,sem):
-                                                                        v1,v2,v3 = process(data)
+                                                                        v1,v2,v3,v4 = process(data)
                                                                         try:
                                                                               result = await do_inference(v1,sem)
+                                                                              def is_cloud(scl):
+                                                                                    # SCL values indicating cloud or cloud shadow
+                                                                                    return scl in [3, 8, 9, 10]
+                                                                              def is_water(scl):
+                                                                                    # SCL value indicating water
+                                                                                    return scl == 6
+                                                                              def no_data_or_invalid(scl):
+                                                                                    # SCL values indicating no data or invalid data
+                                                                                    return scl in [0, 1, 7]
+                                                                              def is_ice(scl):
+                                                                                    # SCL value indicating snow or ice
+                                                                                    return scl == 11
+                                                                              result = np.where(np.vectorize(is_cloud)(v4), -1, result)
+                                                                              result = np.where(np.vectorize(is_water)(v4), 0, result)
+                                                                              result = np.where(np.vectorize(no_data_or_invalid)(v4), -1, result)
+                                                                              result = np.where(np.vectorize(is_ice)(v4), 0, result)
+
                                                                         except Exception as e:
                                                                               await asyncio.sleep(1)
                                                                               return await handle_one(data,sem)
                                                                         return (result,v2,v3)
 
-                                                                  async def run_pipeline(max_concurrent_tasks=30,max_in_flight=400):
+                                                                  async def run_pipeline(max_concurrent_tasks=60,max_in_flight=600):
                                                                         sem = asyncio.Semaphore(max_concurrent_tasks)
                                                                         tasks = set()
                                                                         meter = ThroughputMeter(report_every=1.0)
@@ -450,7 +468,7 @@ def create_app():
                                                                   logger_workflow.debug('start writing output to '+str(outputPath), extra={'status': 'DEBUG'})
                                                                   with outputPath.open('wb') as outputFile,rasterio.io.MemoryFile() as memfile:
                                                                         #with rasterio.open(outputFile,mode='w',**data["meta"][ALL_BANDS[band_number]]) as file2:
-                                                                        with memfile.open(driver="GTiff",width=w,height=h,count=1,dtype="float32",crs=metaData["B03"]["crs"],transform=metaData["B03"]["transform"],compress='ZSTD') as file2:
+                                                                        with memfile.open(driver="GTiff",width=w,height=h,count=1,dtype="float32",crs=metaData["B03"]["crs"],transform=metaData["B03"]["transform"],compress='ZSTD',nodata=-1) as file2:
                                                                               file2.write(array, indexes=1)
                                                                         outputFile.write(memfile.read())
                                     def recurse_folders(cp):
