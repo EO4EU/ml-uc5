@@ -352,7 +352,7 @@ def create_app():
                                                                                     dic['x']=i
                                                                                     dic['y']=j
                                                                                     listvalue.append(dic)
-                                                                                    if len(listvalue)>=1024:
+                                                                                    if len(listvalue)>=10000:
                                                                                           yield listvalue
                                                                                           listvalue=[]
                                                                         if len(listvalue)>0:
@@ -450,7 +450,7 @@ def create_app():
                                                                               return await handle_one(data,sem,triton_client=triton_client)
                                                                         return (result,v2,v3)
 
-                                                                  async def run_pipeline(max_concurrent_tasks=60,max_in_flight=600):
+                                                                  async def run_pipeline(max_concurrent_tasks=10,max_in_flight=60):
                                                                         sem = asyncio.Semaphore(max_concurrent_tasks)
                                                                         tasks = set()
                                                                         meter = ThroughputMeter(report_every=1.0)
