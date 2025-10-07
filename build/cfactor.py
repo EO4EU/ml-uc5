@@ -395,15 +395,25 @@ def create_app():
                                                                               X_scaled[:, i] = (X[:, i] - q1) / iqr
                                                                         return X_scaled, value[['x']].values, value[['y']].values, value[['SCL']].values
                                                                   async def do_inference(data,sem,triton_client):
-                                                                        inputs=[]
-                                                                        outputs=[]
-                                                                        inputs.append(httpclient.InferInput('input__0',data.shape, "FP32"))
-                                                                        # Make numpy conversion async to avoid blocking event loop
-                                                                        data_float32 = await asyncio.to_thread(lambda: data.astype(np.float32))
-                                                                        inputs[0].set_data_from_numpy(data_float32, binary_data=True)
-                                                                        outputs.append(httpclient.InferRequestedOutput('output__0', binary_data=True))
+                                                                        # Prepare inputs and outputs in a separate thread to avoid blocking
+                                                                        def prepare_inference_inputs(data):
+                                                                              inputs = []
+                                                                              outputs = []
+                                                                              data = data.astype(np.float32)
+                                                                              
+                                                                              inputs.append(httpclient.InferInput('input__0', data.shape, "FP32"))
+                                                                              inputs[0].set_data_from_numpy(data, binary_data=True)
+                                                                              outputs.append(httpclient.InferRequestedOutput('output__0', binary_data=True))
+                                                                              
+                                                                              return inputs, outputs
+                                                                        
+                                                                        # Run input preparation in thread
+                                                                        inputs, outputs = await asyncio.to_thread(prepare_inference_inputs, data)
+                                                                        
+                                                                        # Only the actual inference needs the semaphore
                                                                         async with sem:
-                                                                              results = await triton_client.infer('cfactor2',inputs,outputs=outputs)
+                                                                              results = await triton_client.infer('cfactor2', inputs, outputs=outputs)
+                                                                        
                                                                         # Make numpy result conversion async to avoid blocking event loop
                                                                         return await asyncio.to_thread(lambda: results.as_numpy('output__0'))
 
@@ -412,23 +422,29 @@ def create_app():
                                                                         v1,v2,v3,v4 = await asyncio.to_thread(process, data)
                                                                         try:
                                                                               result = await do_inference(v1,sem,triton_client=triton_client)
-                                                                              def is_cloud(scl):
-                                                                                    # SCL values indicating cloud or cloud shadow
-                                                                                    return scl in [3, 8, 9, 10]
-                                                                              def is_water(scl):
-                                                                                    # SCL value indicating water
-                                                                                    return scl == 6
-                                                                              def no_data_or_invalid(scl):
-                                                                                    # SCL values indicating no data or invalid data
-                                                                                    return scl in [0, 1, 7]
-                                                                              def is_ice(scl):
-                                                                                    # SCL value indicating snow or ice
-                                                                                    return scl == 11
-                                                                              v4 = v4.flatten()
-                                                                              result = np.where(np.vectorize(is_cloud)(v4), -1, result)
-                                                                              result = np.where(np.vectorize(is_water)(v4), 0, result)
-                                                                              result = np.where(np.vectorize(no_data_or_invalid)(v4), -1, result)
-                                                                              result = np.where(np.vectorize(is_ice)(v4), 0, result)
+                                                                              
+                                                                              # Move post-processing numpy operations to thread to avoid blocking
+                                                                              def post_process_result(result, v4):
+                                                                                    def is_cloud(scl):
+                                                                                          # SCL values indicating cloud or cloud shadow
+                                                                                          return scl in [3, 8, 9, 10]
+                                                                                    def is_water(scl):
+                                                                                          # SCL value indicating water
+                                                                                          return scl == 6
+                                                                                    def no_data_or_invalid(scl):
+                                                                                          # SCL values indicating no data or invalid data
+                                                                                          return scl in [0, 1, 7]
+                                                                                    def is_ice(scl):
+                                                                                          # SCL value indicating snow or ice
+                                                                                          return scl == 11
+                                                                                    v4 = v4.flatten()
+                                                                                    result = np.where(np.vectorize(is_cloud)(v4), -1, result)
+                                                                                    result = np.where(np.vectorize(is_water)(v4), 0, result)
+                                                                                    result = np.where(np.vectorize(no_data_or_invalid)(v4), -1, result)
+                                                                                    result = np.where(np.vectorize(is_ice)(v4), 0, result)
+                                                                                    return result
+                                                                              
+                                                                              result = await asyncio.to_thread(post_process_result, result, v4)
                                                                         except Exception as e:
                                                                               await asyncio.sleep(1)
                                                                               return await handle_one(data,sem,triton_client=triton_client)
