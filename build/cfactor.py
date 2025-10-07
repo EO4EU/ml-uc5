@@ -428,7 +428,7 @@ def create_app():
                                                                               return await handle_one(data,sem)
                                                                         return (result,v2,v3)
 
-                                                                  async def run_pipeline(max_concurrent_tasks=60,max_in_flight=600):
+                                                                  async def run_pipeline(max_concurrent_tasks=120,max_in_flight=1200):
                                                                         sem = asyncio.Semaphore(max_concurrent_tasks)
                                                                         tasks = set()
                                                                         meter = ThroughputMeter(report_every=1.0)
