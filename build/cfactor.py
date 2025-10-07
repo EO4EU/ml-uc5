@@ -269,7 +269,7 @@ def create_app():
                                                                               logger_workflow.debug("matched",extra={'status': 'DEBUG'})
                                                                               matchedBand=match.group(1)
                                                                               logger_workflow.debug("matchedBand "+matchedBand,extra={'status': 'DEBUG'})
-                                                                              if matchedBand in ['B05','B06','B07','B8A','B11','B12']:
+                                                                              if matchedBand in ['B05','B06','B07','B8A','B11','B12','SCL']:
                                                                                     logger_workflow.debug("matchedBand 20m "+matchedBand,extra={'status': 'DEBUG'})
                                                                                     path_src=image
                                                                                     dicPath[matchedBand]=path_src
