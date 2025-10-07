@@ -394,8 +394,7 @@ def create_app():
                                                                               iqr = scaler_params['iqr'][fname]
                                                                               X_scaled[:, i] = (X[:, i] - q1) / iqr
                                                                         return X_scaled, value[['x']].values, value[['y']].values, value[['SCL']].values
-                                                                  async def do_inference(data,sem):
-                                                                        triton_client = httpclient.InferenceServerClient(url="default-inference.uc5.svc.cineca-inference-server.local", verbose=False,conn_timeout=10000000,conn_limit=None,ssl=False)
+                                                                  async def do_inference(data,sem,triton_client=triton_client):
                                                                         async with sem:
                                                                               inputs=[]
                                                                               outputs=[]
@@ -403,10 +402,9 @@ def create_app():
                                                                               inputs[0].set_data_from_numpy(data.astype(np.float32), binary_data=True)
                                                                               outputs.append(httpclient.InferRequestedOutput('output__0', binary_data=True))
                                                                               results = await triton_client.infer('cfactor2',inputs,outputs=outputs)
-                                                                              await triton_client.close()
-                                                                              return results.as_numpy('output__0')
-                                                                  
-                                                                  async def handle_one(data,sem):
+                                                                        return results.as_numpy('output__0')
+
+                                                                  async def handle_one(data,sem,triton_client=triton_client):
                                                                         v1,v2,v3,v4 = process(data)
                                                                         try:
                                                                               result = await do_inference(v1,sem)
@@ -438,16 +436,17 @@ def create_app():
                                                                         meter = ThroughputMeter(report_every=1.0)
                                                                         reporter_task = asyncio.create_task(meter.reporter())
                                                                         array=np.zeros((h,w),dtype=np.float32)
+                                                                        triton_client = httpclient.InferenceServerClient(url="default-inference.uc5.svc.cineca-inference-server.local", verbose=False,conn_timeout=10000000,conn_limit=None,ssl=False)
                                                                         try:
                                                                               for data in data_generator():
-                                                                                    t = asyncio.create_task(handle_one(data,sem))
+                                                                                    t = asyncio.create_task(handle_one(data,sem,triton_client=triton_client))
                                                                                     tasks.add(t)
 
                                                                                     if len(tasks) >= max_in_flight:
                                                                                           _done, tasks = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
                                                                                           for fut in _done:
                                                                                                 result,x,y = fut.result()
-                                                                                                meter.update(batch_size=result.shape[0], concurrent=len(tasks), inflight=sem._value)
+                                                                                                meter.update(batch_size=result.shape[0], concurrent=max_concurrent_tasks-sem._value, inflight=len(tasks))
                                                                                                 for i in range(0,result.shape[0]):
                                                                                                       result_subarray=result[i]
                                                                                                       array[x[i,0],y[i,0]]=result_subarray + target_mean - 0.5
@@ -455,13 +454,14 @@ def create_app():
                                                                                     _done, tasks = await asyncio.wait(tasks)
                                                                                     for fut in _done:
                                                                                           result,x,y = fut.result()
-                                                                                          meter.update(batch_size=result.shape[0], concurrent=len(tasks), inflight=sem._value)
+                                                                                          meter.update(batch_size=result.shape[0], concurrent=max_concurrent_tasks-sem._value, inflight=len(tasks))
                                                                                           for i in range(0,result.shape[0]):
                                                                                                 result_subarray=result[i]
                                                                                                 array[x[i,0],y[i,0]]=result_subarray + target_mean - 0.5
                                                                         finally:
                                                                               meter.stop()
                                                                               await reporter_task
+                                                                              await triton_client.close()
                                                                         logger_workflow.debug(f"[summary] total calls: {meter.total_reqs}, total items: {meter.total_items}", extra={'status': 'DEBUG'})
                                                                         return array
                                                                   logger_workflow.debug('start processing', extra={'status': 'DEBUG'})
