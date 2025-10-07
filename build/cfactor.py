@@ -394,7 +394,7 @@ def create_app():
                                                                               iqr = scaler_params['iqr'][fname]
                                                                               X_scaled[:, i] = (X[:, i] - q1) / iqr
                                                                         return X_scaled, value[['x']].values, value[['y']].values, value[['SCL']].values
-                                                                  async def do_inference(data,sem,triton_client=triton_client):
+                                                                  async def do_inference(data,sem,triton_client):
                                                                         async with sem:
                                                                               inputs=[]
                                                                               outputs=[]
@@ -404,10 +404,10 @@ def create_app():
                                                                               results = await triton_client.infer('cfactor2',inputs,outputs=outputs)
                                                                         return results.as_numpy('output__0')
 
-                                                                  async def handle_one(data,sem,triton_client=triton_client):
+                                                                  async def handle_one(data,sem,triton_client):
                                                                         v1,v2,v3,v4 = process(data)
                                                                         try:
-                                                                              result = await do_inference(v1,sem)
+                                                                              result = await do_inference(v1,sem,triton_client=triton_client)
                                                                               def is_cloud(scl):
                                                                                     # SCL values indicating cloud or cloud shadow
                                                                                     return scl in [3, 8, 9, 10]
@@ -427,7 +427,7 @@ def create_app():
                                                                               result = np.where(np.vectorize(is_ice)(v4), 0, result)
                                                                         except Exception as e:
                                                                               await asyncio.sleep(1)
-                                                                              return await handle_one(data,sem)
+                                                                              return await handle_one(data,sem,triton_client=triton_client)
                                                                         return (result,v2,v3)
 
                                                                   async def run_pipeline(max_concurrent_tasks=60,max_in_flight=600):
