@@ -395,17 +395,21 @@ def create_app():
                                                                               X_scaled[:, i] = (X[:, i] - q1) / iqr
                                                                         return X_scaled, value[['x']].values, value[['y']].values, value[['SCL']].values
                                                                   async def do_inference(data,sem,triton_client):
+                                                                        inputs=[]
+                                                                        outputs=[]
+                                                                        inputs.append(httpclient.InferInput('input__0',data.shape, "FP32"))
+                                                                        # Make numpy conversion async to avoid blocking event loop
+                                                                        data_float32 = await asyncio.to_thread(lambda: data.astype(np.float32))
+                                                                        inputs[0].set_data_from_numpy(data_float32, binary_data=True)
+                                                                        outputs.append(httpclient.InferRequestedOutput('output__0', binary_data=True))
                                                                         async with sem:
-                                                                              inputs=[]
-                                                                              outputs=[]
-                                                                              inputs.append(httpclient.InferInput('input__0',data.shape, "FP32"))
-                                                                              inputs[0].set_data_from_numpy(data.astype(np.float32), binary_data=True)
-                                                                              outputs.append(httpclient.InferRequestedOutput('output__0', binary_data=True))
                                                                               results = await triton_client.infer('cfactor2',inputs,outputs=outputs)
-                                                                        return results.as_numpy('output__0')
+                                                                        # Make numpy result conversion async to avoid blocking event loop
+                                                                        return await asyncio.to_thread(lambda: results.as_numpy('output__0'))
 
                                                                   async def handle_one(data,sem,triton_client):
-                                                                        v1,v2,v3,v4 = process(data)
+                                                                        # Make the heavy numpy processing async to avoid blocking event loop
+                                                                        v1,v2,v3,v4 = await asyncio.to_thread(process, data)
                                                                         try:
                                                                               result = await do_inference(v1,sem,triton_client=triton_client)
                                                                               def is_cloud(scl):
