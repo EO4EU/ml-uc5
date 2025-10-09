@@ -421,7 +421,7 @@ def create_app():
                                                                         # Make the heavy numpy processing async to avoid blocking event loop
                                                                         v1,v2,v3,v4 = await asyncio.to_thread(process, data)
                                                                         try:
-                                                                              result = await do_inference(v1,sem,triton_client=triton_client)
+                                                                              result = await do_inference(v1,sem,triton_client=triton_client)+target_mean - 0.5
                                                                               
                                                                               # Move post-processing numpy operations to thread to avoid blocking
                                                                               def post_process_result(result, v4):
@@ -469,7 +469,7 @@ def create_app():
                                                                                                 meter.update(batch_size=result.shape[0], concurrent=max_concurrent_tasks-sem._value, inflight=len(tasks))
                                                                                                 for i in range(0,result.shape[0]):
                                                                                                       result_subarray=result[i]
-                                                                                                      array[x[i,0],y[i,0]]=result_subarray + target_mean - 0.5
+                                                                                                      array[x[i,0],y[i,0]]=result_subarray
                                                                               if tasks:
                                                                                     _done, tasks = await asyncio.wait(tasks)
                                                                                     for fut in _done:
@@ -477,7 +477,7 @@ def create_app():
                                                                                           meter.update(batch_size=result.shape[0], concurrent=max_concurrent_tasks-sem._value, inflight=len(tasks))
                                                                                           for i in range(0,result.shape[0]):
                                                                                                 result_subarray=result[i]
-                                                                                                array[x[i,0],y[i,0]]=result_subarray + target_mean - 0.5
+                                                                                                array[x[i,0],y[i,0]]=result_subarray
                                                                         finally:
                                                                               meter.stop()
                                                                               await reporter_task
