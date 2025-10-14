@@ -21,10 +21,6 @@
     variables: 
       REPO_BRANCH: dev
       HELM_BRANCH: dev
-  - if: $CI_COMMIT_BRANCH == "backup"
-    variables:
-      REPO_BRANCH: backup
-      HELM_BRANCH: backup
   before_script:
     - "apk --no-cache add wget"
     - "export VAULT_TOKEN=$(wget -qO- --method=PUT \
@@ -98,10 +94,15 @@ build_image:
         --wkd build
       fi
 scan_image:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_COMMIT_MESSAGE =~ /trivy/'
+    - when: never
   extends: [.dagger]
   tags: [dagger]
   stage: test
-  needs: [build_image]
+  needs:
+    - job: build_image
+      optional: true
   dependencies: [build_image]
   script:
     - cd $REPO
@@ -130,7 +131,11 @@ push_image:
   extends: [.dagger]
   tags: [dagger]
   stage: deploy
-  needs: [scan_image]
+  needs:
+    - job: build_image
+      optional: true
+    - job: scan_image
+      optional: true
   script:
     - cd $REPO
     - |
