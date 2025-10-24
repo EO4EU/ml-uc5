@@ -32,7 +32,7 @@ class KafkaHandler(logging.Handler):
         message["component_name"]=record.source
         message["workflow_name"]=record.workflow_name
         message["status"]=record.status
-        message["description"]=record.msg[:80]
+        message["description"]=record.msg[:300]
         timestamp = record.created
         dt = datetime.fromtimestamp(timestamp, tz=timezone.utc)
         message["timestamp"]=dt.isoformat()
