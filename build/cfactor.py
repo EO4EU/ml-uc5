@@ -507,10 +507,10 @@ def create_app():
                                                                   return await handle_one(data,sem,triton_client=triton_client)
                                                             return (result,v2,v3)
 
-                                                      async def run_pipeline(max_concurrent_tasks=10,max_in_flight=60,file_number=0,total_number=1,timings_file=[]):
+                                                      async def run_pipeline(max_concurrent_tasks=10,max_in_flight=60,file_number=0,total_number=1,timings_file=[],total_pixels=1):
                                                             sem = asyncio.Semaphore(max_concurrent_tasks)
                                                             tasks = set()
-                                                            meter = ThroughputMeter(report_every=60.0, logger=logger_workflow, file_number=file_number, total_number=total_number, timings=timings_file)
+                                                            meter = ThroughputMeter(report_every=60.0, logger=logger_workflow, file_number=file_number, total_number=total_number, timings=timings_file, total_pixels=total_pixels)
                                                             reporter_task = asyncio.create_task(meter.reporter())
                                                             array=np.zeros((h,w),dtype=np.float32)
                                                             triton_client = httpclient.InferenceServerClient(url="default-inference.uc5.svc.cineca-inference-server.local", verbose=False,conn_timeout=10000000,conn_limit=None,ssl=False)
