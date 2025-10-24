@@ -128,7 +128,7 @@ class ThroughputMeter:
                 if self.total_pixels > 0 and current_file_throughput > 0:
                     pixels_remaining = self.total_pixels - self.total_items
                     est_time_current_file = pixels_remaining / current_file_throughput
-                    est_time_all_files = (est_time_current_file / (self.total_items / self.total_pixels)) * self.total_number if self.total_items > 0 else 0
+                    est_time_all_files = est_time_current_file + ((self.total_number - self.file_number) * self.total_pixels / current_file_throughput)
                     time_est_msg = f" | File {self.file_number}/{self.total_number} | Est. total remaining: {est_time_all_files:.1f}s (pixel-based)"
                 else:
                     time_est_msg = f" | File {self.file_number}/{self.total_number}"
