@@ -551,6 +551,14 @@ def create_app():
                                                             #with rasterio.open(outputFile,mode='w',**data["meta"][ALL_BANDS[band_number]]) as file2:
                                                             with memfile.open(driver="GTiff",width=w,height=h,count=1,dtype="float32",crs=metaData["B03"]["crs"],transform=metaData["B03"]["transform"],compress='ZSTD',nodata=-1) as file2:
                                                                   file2.write(array, indexes=1)
+                                                                  file2.set_band_description(1, 'C-Factor')
+                                                                  file2.update_tags(i=1,
+                                                                  long_name="C-Factor",
+                                                                  description="C Factor Value",              # or "reflectance" / "%", as appropriate
+                                                                  min=0.0,
+                                                                  max=1.0
+                                                                  )
+                                                                  file2.update(title="C-Factor prediction")
                                                             outputFile.write(memfile.read())
                                           file_end_time=time.time()
                                           file_timings.append(file_end_time - file_start_time)
