@@ -134,9 +134,9 @@ class ThroughputMeter:
                     time_est_msg = f" | File {self.file_number}/{self.total_number}"
 
             if self.logger:
-                  self.logger.info(f"[throughput] {reqs_per_s:.2f} req/s, {items_per_s:.0f} pixels/s  "
-                                     f"(avg: {avg_reqs:.2f} req/s, {avg_items:.0f} pixels/s) "
-                                     f"| Current file: {current_file_throughput:.0f} pixels/s, {current_file_time:.1f}s elapsed{current_file_est_msg}"
+                  self.logger.info(f"{reqs_per_s:.2f} req/s, {items_per_s:.0f} pixels/s \n "
+                                     f"(avg: {avg_reqs:.2f} req/s, {avg_items:.0f} pixels/s) \n"
+                                     f"Current file: {current_file_throughput:.0f} pixels/s, {current_file_time:.1f}s elapsed{current_file_est_msg}\n"
                                      f"{time_est_msg}", 
                                      extra={'status': 'INFO','overwrite':True})
 
@@ -558,7 +558,7 @@ def create_app():
                                                                   min=0.0,
                                                                   max=1.0
                                                                   )
-                                                                  file2.update(title="C-Factor prediction")
+                                                                  file2.update_tag(title="C-Factor prediction")
                                                             outputFile.write(memfile.read())
                                           file_end_time=time.time()
                                           file_timings.append(file_end_time - file_start_time)
