@@ -299,6 +299,7 @@ def create_app():
                                     list_files(cp)
                                     file_timings=[]
                                     total_number=len(listFiles)
+                                    logger_workflow.info(f"Calculating time estimate", extra={'status': 'INFO'})
                                     for file_index, folder in enumerate(listFiles, start=1):
                                           file_start_time=time.time()
                                           logger_workflow.debug('matched folder '+str(folder), extra={'status': 'DEBUG'})
@@ -558,7 +559,7 @@ def create_app():
                                                                   min=0.0,
                                                                   max=1.0
                                                                   )
-                                                                  file2.update_tag(title="C-Factor prediction")
+                                                                  file2.update_tags(title="C-Factor prediction")
                                                             outputFile.write(memfile.read())
                                           file_end_time=time.time()
                                           file_timings.append(file_end_time - file_start_time)
