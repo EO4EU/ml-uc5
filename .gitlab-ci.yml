@@ -22,7 +22,7 @@
       REPO_BRANCH: dev
       HELM_BRANCH: dev
   before_script:
-    - "apk --no-cache add wget"
+    - "apk update && apk --no-cache add wget"
     - "export VAULT_TOKEN=$(wget -qO- --method=PUT \
       --body-data='{\"role_id\":\"'\"$VAULT_ROLE_ID\"'\",\"secret_id\":\"'\"$VAULT_SECRET_ID\"'\"}' \
       \"$VAULT_SERVER_URL/v1/auth/approle/login\" | \
