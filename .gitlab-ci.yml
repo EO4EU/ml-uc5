@@ -12,6 +12,7 @@
     SERVICE: eo4eu-inference-server
     HELM: helm-repo
     COOKIECUTTER_BRANCH: inference-server-uc
+    YAML_RULES: rules/python_rules.yaml
   rules:
   - if: $CI_COMMIT_BRANCH == "main"
     variables: 
@@ -121,12 +122,33 @@ scan_image:
         export \
         --path \
         /builds/$REPO_NAMESPACE/$REPO/vulnerabilities.html
+        dagger call sbom \
+        --bucket $BUCKET \
+        --endpoint https://$MINIO \
+        --access env:S3_ACCESS_KEY \
+        --secret env:S3_SECRET_KEY \
+        --repo $REPO \
+        --tag $TAG \
+        --wkd /builds/$REPO_NAMESPACE/$REPO \
+        export \
+        --path \
+        /builds/$REPO_NAMESPACE/$REPO/sbom-report.html
+        dagger call analyze-with-sonarqube \
+          --yaml-rules $YAML_RULES \
+          --source-directory build \
+          --sonar-host-url $SONAR_HOST_URL \
+          --sonar-token $SONAR_TOKEN \
+          --sonar-project-key $SONAR_PROJECT_KEY \
+          --output-name sonar-report.sarif \
+          export --path /builds/$REPO_NAMESPACE/$REPO
       fi
   artifacts:
     when: always
     expire_in: 4 weeks
     paths:
       - vulnerabilities.html
+      - sbom-report.html
+      - sonar-report.html
 push_image:
   extends: [.dagger]
   tags: [dagger]

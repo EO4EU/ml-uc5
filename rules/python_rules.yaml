@@ -1,0 +1,151 @@
+# Security coding rules for PYTHON
+# Generated from PDF extraction
+
+- id: "PY-SEC-RUL-01"
+  language: python
+  severity: high
+  category: command_execution
+  pattern_type: manual
+  pattern: ""
+  message: Unsafe OS command execution shall be controlled or avoided
+  description: |
+    Python is a particularly interesting tool for attackers due to its prevalence on server and developer machines, its ability to execute arbitrary code provided as data (as opposed to native binaries), and its complete lack of internal auditing.
+    The software constructs all or part of an OS command using externally-influenced input from an upstream component, but it does not neutralize or incorrectly neutralizes special elements that could modify the intended OS command when it is sent to a downstream component.
+    This allows attackers to download, decrypt, and execute malicious code with a single command and it could bypass most anti-malware scanners.
+    Violation examples include use of exec method or keyword, subprocess.check_call or subprocess.Popen not controlled, functions called with Shell=True, and paramiko.exec_command.
+
+- id: "PY-SEC-RUL-02"
+  language: python
+  severity: medium
+  category: command_injection
+  pattern_type: manual
+  pattern: ""
+  message: Avoid using wildcard '*' in commands that execute OS operations
+  description: |
+    Python provides methods emulating Linux utilities which may accept a wildcard "*" to represent any file or folder. Using such partially qualified paths can lead to unintended consequences if unexpected files or symlinks are present, especially when combined with commands that manipulate permissions or copy data. This creates a risk of OS command injection (CWE-78) due to improper neutralization of special elements.
+
+- id: "PY-SEC-RUL-03"
+  language: python
+  severity: high
+  category: file_permissions
+  pattern_type: manual
+  pattern: ""
+  message: Files shall be created or manipulated with restrictive permissions to prevent vulnerabilities
+  description: |
+    Python provides chmod to manipulate POSIX style permissions. POSIX based operating systems utilize a permissions model to protect access to parts of the file system, supporting owner, group, and world roles with read, write, and execute flags.
+    Discretion should be used when granting write access to files such as configuration files, implementing least privilege.
+    Risk includes reading passwords from config files, unauthorized modification leading to code execution or denial of service.
+    Example violation: os.chmod('/etc/hosts', 0o777)
+
+- id: "PY-SEC-RUL-04"
+  language: python
+  severity: medium
+  category: code_execution
+  pattern_type: manual
+  pattern: ""
+  message: Prevent features that allow arbitrary code execution
+  description: |
+    Some Python frameworks or plugins provide the possibility of arbitrary code execution if they are not correctly used or configured, especially in production systems.
+    See CWE-94: Improper Control of Generation of Code ('Code Injection'). The software constructs all or part of a code segment using externally-influenced input from an upstream component, but it does not neutralize or incorrectly neutralizes special elements that could modify the syntax or behavior of the intended code segment.
+    Risk: It could be possible to execute arbitrary code.
+    Violation examples include running Flask applications in debug mode, usage of the “logging.config.listen” function, and setting autoescaping to false in Jinja2 environment.
+
+- id: "PY-SEC-RUL-05"
+  language: python
+  severity: high
+  category: file_handling
+  pattern_type: manual
+  pattern: ""
+  message: Control usage of tarfile.extractall to prevent path traversal
+  description: |
+    Abstract:
+      The tarfile module allows reading and writing tar archives. Its extractall method extracts all members to a directory. Use tarfile.extractall(members=function_name) with a custom function that inspects each member, discarding files containing directory traversal sequences ("../" or "..") and special file types unless explicitly needed.
+    Risk:
+      Possible path traversal when extracting archives from untrusted sources. Files may be created outside the intended path via absolute paths or ".." components, leading to CWE-22 vulnerabilities.
+    Violation example:
+      Using tarfile.extractall() without controlling members.
+
+- id: "PY-SEC-RUL-06"
+  language: python
+  severity: medium
+  category: cryptography
+  pattern_type: manual
+  pattern: ""
+  message: Prevent use of broken or risky cryptographic algorithms
+  description: |
+    Some hash methods are completely unsafe and considered as cryptographically broken (MD4, MD5, SHA1). It is also the case for all versions of SSL and early TLS versions.
+    The use of a broken or risky cryptographic algorithm is an unnecessary risk that may result in the exposure of sensitive information.
+    The use of a non-standard algorithm is dangerous because a determined attacker may be able to break the algorithm and compromise whatever data has been protected. Well-known techniques may exist to break the algorithm.
+
+- id: "PY-SEC-RUL-07"
+  language: python
+  severity: medium
+  category: security
+  pattern_type: manual
+  pattern: ""
+  message: Prevent disabling SSL certificate validation
+  description: |
+    Abstract:
+      Encryption is critical for security. Using TLS ensures identity verification via trusted certificates during connection initialization. HTTPS requests automatically validate certificates, which is the desired behavior (CWE-295).
+    Risk:
+      Disabling certificate validation can allow attackers to spoof trusted entities, leading to connections with malicious hosts or acceptance of forged data.
+    Violation example:
+      Using requests.get without verifying the SSL certificate.
+
+- id: "PY-SEC-RUL-08"
+  language: python
+  severity: medium
+  category: cryptography
+  pattern_type: manual
+  pattern: ""
+  message: Use strong encryption key lengths
+  description: |
+    Abstract:
+      The recommended key length size for RSA and DSA algorithms is 2048 bits or higher. Keys of 1024 bits and below are considered breakable with current computational power. EC key length sizes should be 224 bits or higher, with 160 bits and below deemed breakable.
+      See CWE-326: Inadequate Encryption Strength. The software stores or transmits sensitive data using an encryption scheme that is theoretically sound but not strong enough for the required protection level.
+    Risk:
+      Weak encryption schemes can be subjected to brute‑force attacks that have a reasonable chance of succeeding using current attack methods and resources.
+    Violation example:
+      Generating a private RSA or DSA key of 512 bits.
+
+- id: "PY-SEC-RUL-09"
+  language: python
+  severity: high
+  category: serialization
+  pattern_type: manual
+  pattern: ""
+  message: Avoid using yaml.load; prefer yaml.safe_load to prevent unsafe object construction.
+  description: |
+    YAML files are commonly used for configuration. The yaml.load function from PyYAML can construct arbitrary Python objects, which may lead to security issues when processing untrusted input. Using yaml.safe_load restricts loading to simple data types such as integers and lists, mitigating the risk of unsafe object deserialization.
+    Risk: Loading YAML documents from untrusted sources can be dangerous because malicious content could execute arbitrary code or create unexpected objects.
+
+- id: "PY-SEC-RUL-10"
+  language: python
+  severity: high
+  category: security
+  pattern_type: manual
+  pattern: ""
+  message: Ensure proper protection against SQL injection in Django applications
+  description: |
+    Abstract:
+      Django’s querysets are protected from SQL injection through query parameterization, separating SQL code from parameters which are escaped by the database driver.
+      However, developers can execute raw queries or use extra() and RawSQL(), which must be handled carefully to escape user-controlled inputs.
+    Risk:
+      SQL injection allows attackers to execute arbitrary SQL commands, potentially leading to data loss, leakage, or execution of system commands. It is a common vulnerability in database-driven web sites.
+
+- id: "PY-SEC-RUL-11"
+  language: python
+  severity: medium
+  category: security
+  pattern_type: manual
+  pattern: ""
+  message: Prevent Cross Site Scripting (XSS) by ensuring proper escaping of user input in templates
+  description: |
+    Abstract:
+      Some Python frameworks or plugins provide the possibility of building web applications and need to validate user input and ensure the data is escaped to prevent XSS attacks. This vulnerability is identified in the Mako templating framework, which lacks an environment-wide variable escaping mechanism; therefore all input variables must be carefully escaped before use.
+    Risk:
+      XSS attacks enable attackers to inject and execute client-side scripts into web pages viewed by other users, potentially bypassing access controls such as the same-origin policy.
+    Violation example:
+      - Uncontrolled use of safestring "mark_safe()" function
+      - Non‑escaped input variables for Mako template
+

@@ -1,0 +1,215 @@
+# Security coding rules for JAVA
+# Generated from PDF extraction
+
+- id: "OBJ01-J"
+  language: java
+  severity: medium
+  category: encapsulation
+  pattern_type: manual
+  pattern: ""
+  message: Limit field accessibility to private or package-private
+  description: |
+    Invariants cannot be enforced for public nonfinal fields or for final fields that reference a mutable object. A protected member of an exported class represents a public commitment to an implementation detail. Attackers can manipulate such fields to violate class invariants, or they may be corrupted by multiple threads accessing them concurrently. As a result, fields must be declared private or package-private.
+    Failing to limit field accessibility can defeat encapsulation, allow attackers to manipulate fields to violate class invariants, or allow these fields to be corrupted as the result of concurrent accesses from multiple threads.
+
+- id: "MET01-J"
+  language: java
+  severity: medium
+  category: argument validation
+  pattern_type: manual
+  pattern: ""
+  message: Do not use assertions to validate method arguments
+  description: |
+    Never use assertions to validate arguments of public methods. The Java Language Specification states that assertions should not be used for argument checking in public methods because the contract must be upheld regardless of whether assertions are enabled. Erroneous arguments should result in appropriate runtime exceptions such as IllegalArgumentException, IndexOutOfBoundsException, or NullPointerException. Using assertions can lead to inconsistent computations, runtime exceptions, and control flow vulnerabilities.
+
+- id: "ERR08-J"
+  language: java
+  severity: medium
+  category: exceptions
+  pattern_type: manual
+  pattern: ""
+  message: Do not catch NullPointerException or its ancestors
+  description: |
+    Programs must not catch java.lang.NullPointerException. Catching NullPointerException may mask an underlying null dereference, degrade performance, and make code hard to understand and maintain. It also applies to catching RuntimeException, Exception, or Throwable, which can unintentionally trap other exception types and prevent proper handling. The rule emphasizes using explicit null checks or allowing the exception to propagate rather than catching it.
+
+- id: "FIO05-J"
+  language: java
+  severity: medium
+  category: memory
+  pattern_type: manual
+  pattern: ""
+  message: Do not expose buffers created using wrap() or duplicate() to untrusted code
+  description: |
+    Buffer classes in java.nio (e.g., IntBuffer, CharBuffer, ByteBuffer) provide wrap() methods that create a buffer backed by the given array, and duplicate() creates a buffer sharing the same backing array. Exposing such buffers to untrusted code allows the caller to modify the original data via the shared backing array, leading to potential security issues.
+    Risk: exposing these buffers may allow an untrusted caller to alter the contents of the original data.
+
+- id: "FIO08-J"
+  language: java
+  severity: high
+  category: input-output
+  pattern_type: manual
+  pattern: ""
+  message: Distinguish between bytes or characters read from a stream and -1 end-of-stream indicator
+  description: |
+    The InputStream.read() and Reader.read() methods return an int value, using -1 to indicate end of stream. Converting this int directly to a narrower type (byte or char) before checking for -1 makes it impossible to differentiate between actual data bytes/characters and the EOF marker, leading to premature termination or misinterpretation of data. Programs must capture the read() return value in an int, check for -1, then safely cast to byte or char. This rule applies to all InputStream and Reader subclasses that implement read(). The risk is high due to historical vulnerabilities such as command injection arising from improper handling.
+
+- id: "SER01-J"
+  language: java
+  severity: high
+  category: serialization
+  pattern_type: manual
+  pattern: ""
+  message: Ensure serialization methods have correct private signatures
+  description: |
+    Classes that require special handling during object serialization and deserialization must implement special methods with exact signatures:
+      - private void writeObject(java.io.ObjectOutputStream out) throws IOException;
+      - private void readObject(java.io.ObjectInputStream in) throws IOException, ClassNotFoundException;
+      - private void readObjectNoData() throws ObjectStreamException;
+    These methods must be declared private. Deviating from these signatures can lead to unexpected behavior, allowing untrusted code to invoke serialization methods or causing them not to be invoked at all. Improper access modifiers (public, protected, static) for readObject, writeObject, readResolve, or writeReplace increase vulnerability to malicious exploitation.
+
+- id: "SEC01-J"
+  language: java
+  severity: high
+  category: permissions
+  pattern_type: manual
+  pattern: ""
+  message: Do not allow tainted variables in privileged blocks
+  description: |
+    Do not operate on unvalidated or untrusted (tainted) data within privileged code blocks. Such inputs can lead to privilege escalation attacks.
+    Mitigations include hard‑coding values, validating or sanitising inputs before performing privileged operations, or using static final resources.
+    Non‑compliant examples pass a filename directly into AccessController.doPrivileged, while compliant solutions either validate the filename with cleanAFilenameAndPath or use a hard‑coded file path.
+
+- id: "SEC03-J"
+  language: java
+  severity: medium
+  category: classloading
+  pattern_type: manual
+  pattern: ""
+  message: Do not load trusted classes after allowing untrusted code to load arbitrary classes
+  description: |
+    The Java classes used by a program are not necessarily loaded upon program startup. Many JVMs load classes only when needed.
+    If untrusted code is permitted to load classes, it may load a malicious class that shares the fully‑qualified name of a benign trusted class, causing the trusted code to receive the malicious version.
+    Therefore, programs must preload any benign classes they need before allowing untrusted code to load classes; once loaded these classes cannot be replaced.
+    Allowing untrusted code to load classes enables replacement of benign classes with Trojan classes (risk: medium).
+    Example vulnerability in Tomcat where useContextClassLoader=true allowed a web application to replace the default XML parser via the WebappClassLoader. The compliant solution preloads the SAXParserFactory using the container's class loader and makes the Digester final.
+
+- id: "SEC04-J"
+  language: java
+  severity: high
+  category: permissions
+  pattern_type: manual
+  pattern: ""
+  message: Protect sensitive operations with security manager checks
+  description: |
+    Sensitive operations must be protected by security manager checks. Failure to enforce security checks in code that performs sensitive operations can lead to malicious tampering of sensitive data.
+    The rule provides non‑compliant examples where methods performing sensitive actions (e.g., removing entries from a Hashtable or reading files) lack proper permission checks, and compliant solutions using SecurityManager.checkSecurityAccess or checkPermission with appropriate Permission objects. It also discusses multi‑threaded contexts and the use of AccessControlContext for deferred checks.
+
+- id: "SEC05-J"
+  language: java
+  severity: high
+  category: permissions
+  pattern_type: manual
+  pattern: ""
+  message: Do not use reflection to increase accessibility of classes, methods, or fields
+  description: |
+    Reflection enables a Java program to analyze and modify itself, including discovering and changing field values.
+    The rule prohibits using reflection to increase the accessibility of classes, methods, or fields beyond their normal access levels.
+    Misuse of reflection APIs that perform language access checks only against the immediate caller can break data encapsulation, leak sensitive information, or permit privilege escalation attacks.
+    The default security manager blocks such accesses unless ReflectPermission with action suppressAccessChecks is granted. Using setAccessible and related reflective methods should be avoided or used with extreme caution, and alternative non‑reflection mechanisms (e.g., getters/setters) are preferred.
+
+- id: "SEC06-J"
+  language: java
+  severity: high
+  category: signatures
+  pattern_type: manual
+  pattern: ""
+  message: Do not rely on default automatic signature verification of URLClassLoader and java.util.jar
+  description: |
+    Code should be signed only when it requires elevated privileges. The default automatic signature verification provided by URLClassLoader and java.util.jar performs only an integrity check and does not authenticate the public key, allowing malicious JARs to replace trusted ones.
+    Failure to verify a digital signature, whether manually or programmatically, can result in execution of malicious code. Systems must perform additional checks such as comparing against a known trusted signature or verifying certificate chains.
+
+- id: "SEC07-J"
+  language: java
+  severity: high
+  category: permissions
+  pattern_type: manual
+  pattern: ""
+  message: Call superclass getPermissions() when overriding in custom class loader
+  description: |
+    When a custom class loader overrides the getPermissions() method, it must explicitly invoke the superclass's getPermissions() to consult the default system policy before assigning arbitrary permissions. Ignoring this can allow untrusted classes to obtain elevated privileges. The rule emphasizes defensive programming; failure to do so may result in unintended permissions.
+
+- id: "ENV00-J"
+  language: java
+  severity: high
+  category: permissions
+  pattern_type: manual
+  pattern: ""
+  message: Do not sign unprivileged Java code
+  description: |
+    Java uses code signing to grant elevated privileges. Signing code that performs only unprivileged operations violates the principle of least privilege because it can circumvent security restrictions such as sandboxing for applets and JNLP applications.
+    Signed unprivileged code may mislead users into granting excessive permissions, leading to potential exploitation if vulnerabilities exist. Non‑privileged code should remain unsigned and confined to the sandbox, while only privileged code should be signed within a single JAR.
+
+- id: "ENV02-J"
+  language: java
+  severity: low
+  category: environment
+  pattern_type: manual
+  pattern: ""
+  message: Do not trust values of environment variables without validation
+  description: |
+    Environment variable values must be considered untrusted and should be sanitized and validated before use. The JVM's default system properties are trusted, but environment variables can be manipulated by an attacker (e.g., via ProcessBuilder). Use system properties where possible and avoid relying on environment variables for sensitive data.
+
+- id: "ENV03-J"
+  language: java
+  severity: high
+  category: permissions
+  pattern_type: manual
+  pattern: ""
+  message: Do not grant dangerous combinations of permissions
+  description: |
+    Certain combinations of permissions can produce significant capability increases and should not be granted. Other permissions should be granted only to special code.
+    Granting AllPermission, ReflectPermission with target suppressAccessChecks, or RuntimePermission createClassLoader to untrusted code allows privileged operations and creates dangerous capabilities.
+    The rule advises never to grant these permissions to untrusted code, provides non‑compliant examples (granting AllPermission in policy files or via custom class loaders) and compliant solutions using fine‑grained permissions. Exceptions are noted for trusted libraries only.
+
+- id: "ENV04-J"
+  language: java
+  severity: high
+  category: verification
+  pattern_type: manual
+  pattern: ""
+  message: Do not disable bytecode verification
+  description: |
+    The Java bytecode verifier is an internal JVM component that checks class files for conformance, illegal type casts, operand stack underflows, and ensures methods clean the operand stack. Disabling verification (e.g., using -Xverify:none) removes these safety checks, allowing potentially insecure or tampered bytecode to execute, which undermines Java's security guarantees. The rule requires that bytecode verification must not be suppressed; compliant solutions enable it explicitly (e.g., -Xverify:all).
+
+- id: "JNI03-J"
+  language: java
+  severity: high
+  category: memory
+  pattern_type: manual
+  pattern: ""
+  message: Do not use direct pointers to Java objects in JNI code
+  description: |
+    To allow for the proper operation of the garbage collector in Java, the JVM must keep track of all Java objects passed to native code. Consequently, JNI uses local and global references; these remain valid even if the object is moved by the garbage collector. Direct pointers to Java objects bypass this mechanism and may become invalid when the GC moves or removes objects, leading to erroneous results.
+    Risk: Using direct pointers can cause crashes, denial‑of‑service attacks, dangling pointers, sensitive information leaks, and arbitrary code execution.
+
+- id: "MSC02-J"
+  language: java
+  severity: medium
+  category: randomness
+  pattern_type: manual
+  pattern: ""
+  message: Do not use java.util.Random for security-critical purposes; use SecureRandom instead.
+  description: |
+    Pseudorandom number generators (PRNGs) such as java.util.Random are deterministic and produce predictable sequences when seeded similarly, which can be exploited to compromise security-sensitive applications like cryptography. The rule mandates avoiding java.util.Random in security-critical contexts and recommends using java.security.SecureRandom or SecureRandom.getInstanceStrong() for strong random numbers. Exceptions exist for noncritical testing or demo purposes with explicit documentation.
+
+- id: "MSC03-J"
+  language: java
+  severity: high
+  category: "sensitive data"
+  pattern_type: manual
+  pattern: ""
+  message: Never hard code sensitive information
+  description: |
+    Hard coding sensitive information, such as passwords, server IP addresses, and encryption keys can expose the information to attackers. Anyone who has access to the class files can decompile them and discover the sensitive information. Leaking data protected by ITAR or HIPAA can have legal consequences. Programs must not hard code sensitive information.
+    Hard coding also increases maintenance difficulty; changes require patches. The risk is high because disclosed passwords or keys can lead to remote exploitation, though severity may be adjusted based on data sensitivity.
+

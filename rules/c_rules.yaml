@@ -1,0 +1,203 @@
+# Security coding rules for C
+# Generated from PDF extraction
+
+- id: "EXP33-C"
+  language: c
+  severity: high
+  category: memory
+  pattern_type: manual
+  pattern: ""
+  message: Do not read uninitialized memory
+  description: |
+    Local, automatic variables assume unexpected values if they are read before they are initialized. The C Standard specifies that objects with automatic storage duration have indeterminate values when not explicitly initialized.
+    Reading such uninitialized variables results in undefined behavior, can cause unexpected program behavior, and may allow arbitrary code execution. It also reduces entropy for random number generation as accesses may be optimized away.
+
+- id: "EXP34-C"
+  language: c
+  severity: high
+  category: memory
+  pattern_type: manual
+  pattern: ""
+  message: Do not dereference null pointers
+  description: |
+    Dereferencing a null pointer is undefined behavior. It typically leads to abnormal program termination, but on some platforms can be exploited to execute arbitrary code.
+    The rule abstracts that null pointer dereferences must be avoided. Risk includes potential crashes and possible code execution exploits.
+    Detailed description provides non‑compliant examples where pointers returned from malloc or other functions are not checked for NULL before use, and compliant solutions showing proper NULL checks before dereferencing.
+
+- id: "ARR38-C"
+  language: c
+  severity: high
+  category: memory
+  pattern_type: manual
+  pattern: ""
+  message: Ensure library functions do not form invalid pointers by validating pointer and size arguments.
+  description: |
+    Library functions that modify arrays or objects must receive a pointer to the object and an integer indicating the number of elements or bytes. The pointer must point to a valid memory region with at least the specified element count; otherwise, the function may form an invalid pointer leading to undefined behavior.
+    Supplying incorrect size arguments can cause pointers to point outside the intended object, resulting in heap or stack overflow vulnerabilities and potential arbitrary code execution.
+    This rule requires validating that size arguments do not exceed the element count of the pointed-to object for all library functions taking pointer and size parameters.
+
+- id: "STR31-C"
+  language: c
+  severity: high
+  category: strings
+  pattern_type: manual
+  pattern: ""
+  message: Ensure storage for strings has sufficient space for character data and the null terminator
+  description: |
+    Copying data to a buffer that is not large enough to hold that data results in a buffer overflow. Buffer overflows occur frequently when manipulating strings. To prevent such errors, ensure the destination buffer is sized to contain the character data plus the null‑termination character.
+    Copying string data to an undersized buffer can lead to buffer overflow, allowing attackers to execute arbitrary code with the process's permissions.
+
+- id: "STR32-C"
+  language: c
+  severity: high
+  category: strings
+  pattern_type: manual
+  pattern: ""
+  message: Do not pass non-null-terminated character sequences to library functions expecting a string
+  description: |
+    Many library functions accept a string or wide string argument with the constraint that the string they receive is properly null-terminated.
+    Passing a character sequence or wide character sequence that is not null-terminated can result in accessing memory outside the object bounds.
+    Failure to properly null‑terminate such sequences when passed to library functions can cause buffer overflows, arbitrary code execution, and information disclosure.
+
+- id: "MEM34-C"
+  language: c
+  severity: high
+  category: memory
+  pattern_type: manual
+  pattern: ""
+  message: Only free memory allocated dynamically
+  description: |
+    The rule states that freeing memory which was not allocated dynamically (i.e., not obtained via malloc, calloc, realloc, or aligned_alloc) leads to undefined behavior and can cause heap corruption, program crashes, or arbitrary code execution. Calls to free() or realloc() must only use pointers returned by standard dynamic allocation functions; null pointers are exempt as free(NULL) is a no‑op.
+    Risk assessment notes that the consequences range from nothing to arbitrary code execution if the reclaimed memory is later reused.
+
+- id: "FIO30-C"
+  language: c
+  severity: high
+  category: strings
+  pattern_type: manual
+  pattern: ""
+  message: Exclude user-controlled input from format strings
+  description: |
+    Abstract: Never call a formatted I/O function with a format string containing a tainted value. An attacker who can control the format string may crash the process, read memory, or execute arbitrary code.
+    Risk: Including user input in format specifiers can lead to crashes, information disclosure, or arbitrary code execution.
+    Detailed Description: The rule mandates that formatted I/O functions (e.g., fprintf, syslog) must not receive a format string built from untrusted data. Instead, use constant format strings and pass user input as separate arguments, or output the constructed message using safe functions like fputs.
+
+- id: "FIO34-C"
+  language: c
+  severity: high
+  category: file_io
+  pattern_type: manual
+  pattern: ""
+  message: Do not assume EOF/WEOF cannot be returned as a valid character; use feof() and ferror() to detect end-of-file.
+  description: |
+    The EOF macro is an in‑band error indicator used to signal that a file has been exhausted. Assuming that characters read from a file can never match EOF (or WEOF for wide characters) is unsafe, especially on implementations where int and char have the same width. This can lead to premature loop termination or misinterpreted data, creating vulnerabilities such as command injection.
+    Functions like fgetc(), getchar(), getc() and their wide‑character equivalents return an int (or wint_t) that may equal EOF/WEOF. Proper code must capture these returns in an int/wint_t, avoid comparing them to character types, and verify end‑of‑file or errors using feof() and ferror() after the loop.
+    Non‑compliant examples show loops testing a char against EOF or storing getwc() results in wchar_t, which can cause incorrect termination. Compliant solutions use int/wint_t variables and call feof()/ferror() to reliably detect end‑of‑file and handle errors.
+
+- id: "ENV32-C"
+  language: c
+  severity: medium
+  category: control-flow
+  pattern_type: manual
+  pattern: ""
+  message: Exit handlers must terminate by returning normally.
+  description: |
+    Exit handlers must terminate by returning. It is important and potentially safety-critical for all exit handlers to be allowed to perform their cleanup actions. Terminating a call to an exit handler in any way other than by returning is undefined behavior and may result in abnormal program termination or other unpredictable behavior, and may prevent other registered handlers from being invoked.
+    The C standard defines exit functions (_Exit(), exit(), quick_exit()) and associated handlers registered via atexit() and at_quick_exit(). Handlers must not call exit functions, longjmp, or otherwise abort; they must simply return.
+
+- id: "ENV33-C"
+  language: c
+  severity: high
+  category: processes
+  pattern_type: manual
+  pattern: ""
+  message: Do not call system() or equivalent functions to execute commands.
+  description: |
+    Use of the system() function can result in exploitable vulnerabilities, allowing execution of arbitrary system commands. High risk situations include passing unsanitized command strings from tainted sources, using commands without path names, relative paths with controllable working directories, and spoofed executables. The rule advises not to invoke a command processor via system() or equivalent functions.
+    Risk assessment indicates that if the command string is not fully sanitized, exploitation risk is high, potentially allowing attackers to execute arbitrary commands with the privileges of the vulnerable process.
+
+- id: "ERR33-C"
+  language: c
+  severity: high
+  category: "error handling"
+  pattern_type: manual
+  pattern: ""
+  message: Detect and handle standard library errors
+  description: |
+    The majority of the standard library functions, including I/O and memory allocation functions, return either a valid value or an error indicator (e.g., -1 or null pointer). Assuming all calls succeed without checking return values is dangerous and can lead to undefined behavior.
+    It is essential that programs detect and appropriately handle all errors according to an error‑handling policy.
+    Failing to detect error conditions can lead to unpredictable results, including abnormal program termination, denial‑of‑service attacks, or arbitrary code execution.
+
+- id: "MSC32-C"
+  language: c
+  severity: medium
+  category: randomness
+  pattern_type: manual
+  pattern: ""
+  message: Properly seed pseudorandom number generators
+  description: |
+    A pseudorandom number generator (PRNG) is a deterministic algorithm that generates sequences of numbers approximating random properties. Seeding sets the initial state, ensuring different sequences across runs. Failing to seed or using the same seed results in identical sequences, allowing attackers to predict future outputs and creating security vulnerabilities. The rule requires PRNGs to be properly seeded (e.g., using srandom() with time-derived values on POSIX or CryptGenRandom on Windows) so that each execution produces a different random sequence.
+
+- id: "POS35-C"
+  language: c
+  severity: high
+  category: filesystem
+  pattern_type: manual
+  pattern: ""
+  message: Avoid race conditions when checking for symbolic link existence
+  description: |
+    Many common operating systems, such as Windows and UNIX, support symbolic (soft) links. Checking for the existence of symbolic links can lead to time-of-check, time-of-use (TOCTOU) race condition vulnerabilities that may be exploited to gain elevated privileges.
+    The non‑compliant example uses lstat() to test a file then open() it, allowing an attacker to replace the file between these calls. The compliant solution opens the file first, then uses fstat() on the file descriptor and compares its attributes with those obtained from lstat() to ensure the same file is used, eliminating the TOCTOU risk.
+
+- id: "POS36-C"
+  language: c
+  severity: medium
+  category: permissions
+  pattern_type: manual
+  pattern: ""
+  message: Observe correct revocation order while relinquishing privileges
+  description: |
+    In set-user-ID and set-group-ID programs, when the effective UID/GID differ from the real ones, it is crucial to drop both user and group privileges in the correct order.
+    Failing to observe the proper revocation order allows an attacker to regain elevated privileges.
+    The compliant solution calls setgid() before setuid(), ensuring group privileges are relinquished while still having superuser rights.
+
+- id: "POS37-C"
+  language: c
+  severity: high
+  category: permissions
+  pattern_type: manual
+  pattern: ""
+  message: Ensure that privilege relinquishment is successful
+  description: |
+    The POSIX setuid() function has complex semantics and platform‑specific behavior. If the process has appropriate privileges, setuid() shall set real, effective and saved user IDs to the target UID; otherwise it may only change the effective ID when allowed. Failure to correctly drop privileges can leave a program with elevated rights, allowing attackers to regain higher privileges.
+    Risk: Unchecked privilege relinquishment may lead to unintended system compromise corresponding to a more privileged user or group account.
+    The rule provides non‑compliant examples where error checks after seteuid()/setuid() are missing and compliant solutions that verify the calls succeed and ensure supplementary groups, fsuid/fsgid are also dropped.
+
+- id: "POS47-C"
+  language: c
+  severity: medium
+  category: concurrency
+  pattern_type: manual
+  pattern: ""
+  message: Do not use threads that can be canceled asynchronously
+  description: |
+    In threading, pthreads can optionally be set to cancel immediately or defer until a specific cancellation point.
+    Canceling asynchronously (immediately) is dangerous because most threads are not safe to cancel immediately.
+    Only functions that are cancel‑safe may be called from a thread that is asynchronously cancelable.
+    Asynchronous cancellation can lead to silent corruption, resource leaks, unpredictable interactions, and data races.
+    It may also cause deadlocks if a mutex is held when the thread is canceled.
+    The compliant solution is to use the default PTHREAD_CANCEL_DEFERRED mode and create explicit cancel points (e.g., pthread_testcancel()) instead of setting asynchronous cancellation.
+
+- id: "POS54-C"
+  language: c
+  severity: high
+  category: error-handling
+  pattern_type: manual
+  pattern: ""
+  message: Detect and handle POSIX library errors by checking return values of functions such as fmemopen, open_memstream, and posix_memalign.
+  description: |
+    All standard library and POSIX functions may indicate errors via specific return values (e.g., -1, NULL).
+    Failing to check these return values can lead to undefined behavior, program crashes, denial‑of‑service, or arbitrary code execution.
+    Programs must adopt a consistent error‑handling policy and verify the success of calls like fmemopen(), open_memstream(), and posix_memalign().
+    Non‑compliant examples assume success and may dereference null pointers; compliant solutions check for NULL and handle errors appropriately.
+

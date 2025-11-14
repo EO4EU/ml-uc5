@@ -3,7 +3,7 @@ import dagger
 from base64 import b64encode
 from typing import Annotated
 from datetime import datetime
-from dagger import Doc, dag, function, object_type
+from dagger import Doc, dag, function, object_type, File, Directory
 
 @object_type
 class Uc5:
@@ -134,15 +134,24 @@ class Uc5:
     @function
     async def sbom(
         self,
+        bucket: Annotated[str, Doc("S3 Bucket")],
+        endpoint: Annotated[str, Doc("S3 Endpoint")],
+        access: Annotated[dagger.Secret, Doc("S3 Access Key")],
+        secret: Annotated[dagger.Secret, Doc("S3 Secret Key")],
+        repo: Annotated[str, Doc("Registry repo")],
         tag: Annotated[str, Doc("Image tag")],
         wkd: Annotated[
             dagger.Directory,
             Doc("Location of directory containing Dagger files"),
         ],
     ) -> dagger.File:
-        """Scan image and produce SBOM file"""
-        return await (
+        """Scan image and produce SBOM report in HTML format using CycloneDX Sunshine."""
+        trivy_container = (
             dag.trivy().base()
+            .with_service_binding(
+                "registry.local",
+                self.registry(bucket, endpoint, access, secret)
+            )
             .with_directory("/src", wkd)
             .with_exec(
                 [
@@ -156,14 +165,137 @@ class Uc5:
                     "0",
                     "--format",
                     "cyclonedx",
+                    "--scanners",
+                    "vuln",
                     "--output",
                     f"/src/sbom-report.cdx.json",
-                    "--input",
-                    f"/src/{tag}"
+                    "--insecure",
+                    f"registry.local/{repo}:{tag}"
                 ]
             )
-            .file(f"/src/sbom-report.cdx.json")
         )
+        
+        sunshine_container = (
+            dag.container()
+            .from_("python:3.11-alpine")
+            .with_exec(["apk", "add", "--no-cache", "git"])
+            .with_exec(["mkdir", "-p", "/reports"])
+            .with_exec(["mkdir", "-p", "/app"])
+            .with_exec(
+                [
+                    "git",
+                    "clone",
+                    "https://github.com/CycloneDX/Sunshine.git",
+                    "/app/sunshine"
+                ]
+            )
+            .with_workdir("/app/sunshine")
+            .with_exec(
+                [
+                    "pip",
+                    "install",
+                    "--no-cache-dir",
+                    "-r",
+                    "requirements.txt"
+                ]
+            )
+            .with_file("/reports/sbom-report.cdx.json", trivy_container.file("/src/sbom-report.cdx.json"))
+            .with_exec(
+                [
+                    "python",
+                    "sunshine.py",
+                    "-i",
+                    "/reports/sbom-report.cdx.json",
+                    "-o",
+                    "/reports/sbom-report.html"
+                ]
+            )
+        )
+        
+        return sunshine_container.file("/reports/sbom-report.html")
+
+    @function
+    async def analyze_with_sonarqube(
+        self,
+        yaml_rules: Annotated[File, Doc("YAML file containing security rules extracted from PDF")],
+        source_directory: Annotated[Directory, Doc("Source code directory to analyze")],
+        sonar_host_url: Annotated[str, Doc("SonarQube server URL")],
+        sonar_token: Annotated[str, Doc("SonarQube authentication token")],
+        sonar_project_key: Annotated[str, Doc("SonarQube project key")],
+        output_name: Annotated[str, Doc("Name for the SARIF output file")] = "sonarqube-results.sarif",
+        create_quality_profile: Annotated[bool, Doc("Whether to create a custom Quality Profile based on PDF rules")] = False,
+    ) -> Annotated[Directory, Doc("Directory containing SARIF JSON report and HTML report")]:
+        """
+        Run SonarQube compliance analysis based on PDF-extracted security rules.
+        
+        This function:
+        1. Loads PDF security rules from YAML
+        2. Optionally creates a custom SonarQube Quality Profile with only those rules
+        3. Runs sonar-scanner using the custom profile (if created) or default rules
+        4. Fetches analysis results from SonarQube API
+        5. Generates SARIF 2.1.0 format output (JSON)
+        6. Converts SARIF to HTML using sarif-tools
+        
+        The analysis uses rule_mapping.yaml to map PDF rules (e.g., OBJ01-J) 
+        to SonarQube rules (e.g., java:S1104). This ensures compliance checking
+        is based on the specific rules extracted from the PDF document.
+        
+        Quality Profile creation (--create-quality-profile=true):
+        - Only supported for: c, cpp, java, python
+        - Requires token with 'Administer Quality Profiles' permission
+        - If disabled or fails, uses SonarQube default rules
+        
+        Requires:
+        - SonarQube server to be accessible
+        - Valid authentication token
+        - rule_mapping.yaml with PDF->SonarQube rule mappings (if using Quality Profiles)
+        
+        Returns:
+        - Directory with both .sarif (JSON) and .html files
+        """
+        
+        module_source = dag.current_module().source()
+        scanner_script = module_source.file("sonarqube_scanner.py")
+        rule_mapping = module_source.file("rule_mapping.yaml")
+        
+        container = (
+            dag.container()
+            .from_("sonarsource/sonar-scanner-cli:latest")
+            .with_user("root")
+            .with_exec(["sh", "-c", "dnf install -y python3-pip"])
+            .with_exec(["pip3", "install", "--no-cache-dir", "pyyaml", "requests", "sarif-tools"])
+            .with_mounted_file("/workspace/rules.yaml", yaml_rules)
+            .with_mounted_file("/workspace/rule_mapping.yaml", rule_mapping)
+            .with_mounted_directory("/src", source_directory)
+            .with_mounted_file("/workspace/sonarqube_scanner.py", scanner_script)
+            .with_exec(["chown", "-R", "scanner-cli:scanner-cli", "/src"])
+            .with_exec(["chmod", "-R", "u+w", "/src"])
+            .with_exec(["mkdir", "-p", "/output"])
+            .with_exec(["chown", "-R", "scanner-cli:scanner-cli", "/output"])
+            .with_exec(["chown", "-R", "scanner-cli:scanner-cli", "/workspace"])
+            .with_exec(["mkdir", "-p", "/src/target/classes"])
+            .with_exec(["chown", "-R", "scanner-cli:scanner-cli", "/src/target"])
+            .with_user("scanner-cli")
+            .with_workdir("/src")
+            .with_env_variable("SONAR_HOST_URL", sonar_host_url)
+            .with_env_variable("SONAR_TOKEN", sonar_token)
+            .with_env_variable("SONAR_PROJECT_KEY", sonar_project_key)
+            .with_env_variable("CREATE_QUALITY_PROFILE", "true" if create_quality_profile else "false")
+            .with_env_variable("PYTHONUNBUFFERED", "1")
+            .with_exec([
+                "python3", "/workspace/sonarqube_scanner.py",
+                "/src",
+                "/workspace/rules.yaml",
+                f"/output/{output_name}"
+            ])
+            .with_exec([
+                "sarif", "html",
+                f"/output/{output_name}",
+                "-o", f"/output/{output_name.replace('.sarif', '.html')}"
+            ])
+        )
+        
+        return container.directory("/output")
 
     @function
     async def encode(

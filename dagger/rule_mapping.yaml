@@ -1,0 +1,416 @@
+# ============================================================
+# PDF Security Rules → SonarQube Rules Mapping
+# ============================================================
+#
+# This file maps PDF-extracted security coding rules to their
+# equivalent SonarQube rule keys for compliance assessment.
+#
+# Format:
+#   language:
+#     PDF-RULE-ID:
+#       - "sonarqube:RuleKey"
+#
+# How to find SonarQube rule keys:
+#   1. Go to your SonarQube instance
+#   2. Navigate to Rules (Quality Profiles → Rules)
+#   3. Search for keywords from PDF rule description
+#   4. Copy the rule key (format: {language}:{id})
+#
+# Example:
+#   curl -u $SONAR_TOKEN: \
+#     "$SONAR_HOST_URL/api/rules/search?q=hard-coded" \
+#     | jq '.rules[] | {key, name}'
+#
+# Note: SonarQube rule availability depends on your instance
+# version and installed plugins. Verify these keys exist on
+# your server before running analysis.
+#
+# Last updated: November 9, 2025
+# ============================================================
+
+# ============================================================
+# JAVA RULES (19 rules)
+# ============================================================
+java:
+  # Encapsulation / Field Access
+  OBJ01-J:
+    - "java:S1104"      # Class variable fields should not have public accessibility
+    - "java:S1444"      # "public static" fields should be constant
+    - "java:S2066"      # "Serializable" inner classes of non-serializable classes should be "static"
+  
+  # Method Arguments Validation
+  MET01-J:
+    - "java:S5960"      # Assertions should not be used to check the values of method parameters
+  
+  # Exception Handling
+  ERR08-J:
+    - "java:S1181"      # Throwable and Error classes should not be caught
+    - "java:S1696"      # NullPointerException should not be caught
+    - "java:S108"       # Nested blocks of code should not be left empty
+    - "java:S2221"      # Exception should not be caught when not required
+    - "java:S1166"      # Exception handlers should preserve the original exceptions
+  
+  # Buffer Exposure (NIO)
+  FIO05-J:
+    - "java:S2384"      # Mutable members should not be stored or returned directly
+    - "java:S4929"      # "synchronized" methods should not return values that are mutable by reference
+  
+  # Stream Reading (EOF handling)
+  FIO08-J:
+    - "java:S3034"      # Raw byte values should not be used in bitwise operations in combination with shifts
+    - "java:S2674"      # The value returned from a stream read should be checked
+  
+  # Serialization
+  SER01-J:
+    - "java:S2061"      # Custom serialization method signatures should meet requirements
+    - "java:S4929"      # "synchronized" methods and "readObject" should not return values
+    - "java:S2112"      # "readObject" should not be "synchronized"
+  
+  # Privileged Blocks / Tainted Data
+  SEC01-J:
+    - "java:S5131"      # Endpoints should not be vulnerable to reflected XSS attacks
+    - "java:S2076"      # Values passed to OS commands should be sanitized
+    - "java:S2092"      # Cookies should be "secure"
+    - "java:S5144"      # Server-side requests should not be vulnerable to forging attacks
+  
+  # Class Loading
+  SEC03-J:
+    - "java:S2658"      # Classes should not be loaded dynamically
+    - "java:S4277"      # Calls to "Class.forName" should not result in unintentional class loading
+  
+  # Security Manager Checks
+  SEC04-J:
+    - "java:S5324"      # "doPrivileged" calls should be avoided
+    - "java:S4792"      # Configuring loggers is security-sensitive
+  
+  # Reflection / Accessibility
+  SEC05-J:
+    - "java:S3011"      # Reflection should not be used to increase accessibility of classes, methods, or fields
+  
+  # Signature Verification
+  SEC06-J:
+    - "java:S4830"      # Server certificates should be verified during SSL/TLS connections
+    - "java:S4790"      # Using weak hashing algorithms is security-sensitive
+  
+  # Class Loader getPermissions
+  SEC07-J:
+    - "java:S2131"      # Primitives should not be boxed just for "String" conversion
+    # Note: No direct SonarQube rule for ClassLoader.getPermissions()
+    # This is a very specific Java security rule
+  
+  # Code Signing
+  ENV00-J:
+    - "java:S4792"      # Configuring loggers is security-sensitive
+    # Note: Code signing is deployment-level concern, not typically covered by SonarQube
+  
+  # Environment Variables
+  ENV02-J:
+    - "java:S5304"      # Environment variables should not be used for authentication data
+    - "java:S2068"      # Credentials should not be hard-coded
+  
+  # Dangerous Permissions
+  ENV03-J:
+    - "java:S5324"      # "doPrivileged" calls should be avoided
+    - "java:S4792"      # Configuring loggers is security-sensitive
+  
+  # Bytecode Verification
+  ENV04-J:
+    # Note: Bytecode verification is JVM-level, not code-level
+    # No direct SonarQube rule exists
+    - "java:S4792"      # Configuring loggers is security-sensitive (placeholder)
+  
+  # JNI Direct Pointers
+  JNI03-J:
+    # Note: JNI-specific rules are rare in SonarQube
+    # This is a C/Java interop concern
+    - "java:S1181"      # Throwable and Error should not be caught (related to JNI crashes)
+  
+  # Random Number Generation
+  MSC02-J:
+    - "java:S2245"      # Using pseudorandom number generators (PRNGs) is security-sensitive
+    - "java:S2119"      # Random values should not be used for session IDs
+  
+  # Hard-coded Sensitive Information
+  MSC03-J:
+    - "java:S2068"      # Credentials should not be hard-coded
+    - "java:S1313"      # IP addresses should not be hardcoded
+    - "java:S6437"      # Secrets should not be disclosed with GitHub Actions' workflow "run"
+
+
+# ============================================================
+# C RULES (17 rules)
+# ============================================================
+c:
+  # Uninitialized Memory
+  EXP33-C:
+    - "c:S836"          # Uninitialized variables should not be used
+    - "c:S5025"         # Uninitialized stack values should not be used
+  
+  # Null Pointer Dereference
+  EXP34-C:
+    - "c:S2259"         # Null pointers should not be dereferenced
+    - "c:S3584"         # "NULL" should not be dereferenced
+  
+  # Invalid Pointers / Array Bounds
+  ARR38-C:
+    - "c:S3519"         # Array accesses should be within bounds
+    - "c:S3584"         # "NULL" should not be dereferenced
+    - "c:S5276"         # Pointers should not be left dangling after free
+  
+  # Buffer Overflow / String Storage
+  STR31-C:
+    - "c:S5816"         # Strings should have sufficient space for null terminator
+    - "c:S5814"         # Strings should be null-terminated
+    - "c:S5268"         # Standard library functions should not be used with invalid arguments
+  
+  # Null-terminated Strings
+  STR32-C:
+    - "c:S5814"         # Strings should be null-terminated
+    - "c:S5268"         # Standard library functions should not be used with invalid arguments
+  
+  # Dynamic Memory Management
+  MEM34-C:
+    - "c:S3584"         # "NULL" should not be dereferenced
+    - "c:S5274"         # Memory should not be freed more than once
+    - "c:S5276"         # Pointers should not be left dangling after free
+  
+  # Format String Vulnerabilities
+  FIO30-C:
+    - "c:S5658"         # Format specifiers should match their arguments
+    - "c:S2275"         # Printf-style format strings should be used correctly
+  
+  # EOF Handling
+  FIO34-C:
+    - "c:S3584"         # "NULL" should not be dereferenced
+    - "c:S5268"         # Standard library functions should not be used with invalid arguments
+  
+  # Exit Handler / Signal Handler
+  ENV32-C:
+    - "c:S5271"         # Signal handlers should only call safe functions
+    - "c:S5273"         # Signal handlers should not use non-async-signal-safe functions
+  
+  # Signal Handlers
+  ENV33-C:
+    - "c:S5271"         # Signal handlers should only call safe functions
+    - "c:S5273"         # Signal handlers should not use non-async-signal-safe functions
+  
+  # Error Handling
+  ERR33-C:
+    - "c:S5263"         # Return values should be checked
+    - "c:S3584"         # "NULL" should not be dereferenced
+  
+  # Sensitive Information in Memory
+  MSC32-C:
+    - "c:S5345"         # Sensitive data should not be logged
+    - "c:S2068"         # Credentials should not be hard-coded
+  
+  # POSIX - Race Conditions (File Access)
+  POS35-C:
+    - "c:S2612"         # Setting loose POSIX file permissions is security-sensitive
+    - "c:S5807"         # File permissions should be restricted
+  
+  # POSIX - Signal Mask Evaluation
+  POS36-C:
+    - "c:S5271"         # Signal handlers should only call safe functions
+  
+  # POSIX - Permissions with open()
+  POS37-C:
+    - "c:S2612"         # Setting loose POSIX file permissions is security-sensitive
+    - "c:S5807"         # File permissions should be restricted
+  
+  # POSIX - Thread-safe Functions
+  POS47-C:
+    - "c:S5271"         # Signal handlers should only call safe functions
+    - "c:S5273"         # Signal handlers should not use non-async-signal-safe functions
+  
+  # POSIX - pthread_kill Signal
+  POS54-C:
+    - "c:S5271"         # Signal handlers should only call safe functions
+
+
+# ============================================================
+# C++ RULES (14 rules)
+# ============================================================
+cpp:
+  # Container Size / Buffer Overflow
+  CTR52-CPP:
+    - "cpp:S5025"       # Memory should not be allocated without checking size
+    - "cpp:S3584"       # "NULL" should not be dereferenced
+    - "cpp:S836"        # Array indexes should be validated
+  
+  # Iterator Ranges
+  CTR53-CPP:
+    - "cpp:S5025"       # Uninitialized stack values should not be used
+    - "cpp:S3584"       # "NULL" should not be dereferenced
+  
+  # Pointer Arithmetic on Polymorphic Objects
+  CTR56-CPP:
+    - "cpp:S5025"       # Memory should not be allocated without checking size
+    - "cpp:S3584"       # "NULL" should not be dereferenced
+  
+  # Exception Handler Ordering
+  ERR54-CPP:
+    - "cpp:S1045"       # Catch blocks should be in the correct order
+    - "cpp:S1181"       # Throwable and Error should not be caught
+  
+  # Uninitialized Memory
+  EXP53-CPP:
+    - "cpp:S836"        # Uninitialized variables should not be used
+    - "cpp:S5025"       # Uninitialized stack values should not be used
+  
+  # Object Lifetime
+  EXP54-CPP:
+    - "cpp:S3584"       # "NULL" should not be dereferenced
+    - "cpp:S5276"       # Pointers should not be left dangling after free
+    - "cpp:S5025"       # Memory allocations should be checked
+  
+  # Lambda Capture Lifetime
+  EXP61-CPP:
+    - "cpp:S5276"       # Pointers should not be left dangling
+    - "cpp:S3584"       # "NULL" should not be dereferenced
+  
+  # Object Representation Bits
+  EXP62-CPP:
+    - "cpp:S5025"       # Memory operations should be safe
+    - "cpp:S3584"       # Unsafe memory access
+  
+  # Memory Allocation Failure
+  MEM51-CPP:
+    - "cpp:S5025"       # Memory allocations should be checked
+    - "cpp:S3584"       # "NULL" should not be dereferenced
+  
+  # Placement new Alignment
+  MEM53-CPP:
+    - "cpp:S5025"       # Memory allocations should follow alignment requirements
+  
+  # Ownership of Dynamically Allocated Objects
+  MEM55-CPP:
+    - "cpp:S5274"       # Memory should not be freed more than once
+    - "cpp:S5276"       # Pointers should not be left dangling after free
+  
+  # Random Number Generation
+  MSC51-CPP:
+    - "cpp:S2245"       # Using pseudorandom number generators (PRNGs) is security-sensitive
+  
+  # Virtual Destructors
+  OOP55-CPP:
+    - "cpp:S1235"       # Destructors of base classes should be virtual
+  
+  # Wide String Termination
+  STR52-CPP:
+    - "cpp:S5814"       # Strings should be null-terminated
+    - "cpp:S5268"       # Standard library functions should not be used with invalid arguments
+
+
+# ============================================================
+# PYTHON RULES (11 rules)
+# ============================================================
+python:
+  # OS Command Execution
+  PY-SEC-RUL-01:
+    - "python:S4721"    # Operating system commands should not be run based on user input
+    - "python:S5144"    # Server-side requests should not be vulnerable to forging attacks
+    - "python:S2076"    # OS commands should not be run with user input
+  
+  # Wildcard in OS Commands
+  PY-SEC-RUL-02:
+    - "python:S4036"    # Wildcard imports should not be used
+    - "python:S2076"    # OS commands should not be run with user input
+  
+  # File Permissions
+  PY-SEC-RUL-03:
+    - "python:S2612"    # Setting loose POSIX file permissions is security-sensitive
+    - "python:S5443"    # Operating system permissions should be set correctly
+  
+  # Arbitrary Code Execution Features
+  PY-SEC-RUL-04:
+    - "python:S5247"    # Code should not be evaluated dynamically
+    - "python:S5332"    # Insecure Flask debug mode should not be enabled
+  
+  # Archive Extraction / Path Traversal
+  PY-SEC-RUL-05:
+    - "python:S5042"    # Expanding archive files is security-sensitive
+    - "python:S2083"    # File system paths should be validated before use
+  
+  # Broken Cryptographic Algorithms
+  PY-SEC-RUL-06:
+    - "python:S4790"    # Weak hashing algorithms should not be used
+    - "python:S5542"    # Encryption algorithms should be secure
+    - "python:S5547"    # Cipher algorithms should be robust
+  
+  # SSL Certificate Validation
+  PY-SEC-RUL-07:
+    - "python:S4830"    # Server certificates should be verified during SSL/TLS connections
+    - "python:S5527"    # Cipher suites should be secure
+  
+  # Weak Cryptography
+  PY-SEC-RUL-08:
+    - "python:S4790"    # Weak hashing algorithms should not be used
+    - "python:S5547"    # Cipher algorithms should be robust
+    - "python:S4426"    # Cryptographic keys should be robust
+  
+  # SQL Injection
+  PY-SEC-RUL-09:
+    - "python:S3649"    # Database queries should not be vulnerable to injection attacks
+    - "python:S2077"    # Formatting SQL queries is security-sensitive
+  
+  # Hard-coded Credentials
+  PY-SEC-RUL-10:
+    - "python:S2068"    # Credentials should not be hard-coded
+    - "python:S6437"    # Secrets should not be disclosed
+  
+  # YAML Deserialization
+  PY-SEC-RUL-11:
+    - "python:S5863"    # Deserialization should not be vulnerable to injection attacks
+    - "python:S2755"    # XML parsers should not be vulnerable to XXE attacks
+
+
+# ============================================================
+# NOTES & DISCLAIMERS
+# ============================================================
+#
+# 1. MAPPING ACCURACY:
+#    - Mappings are based on best-effort correlation between PDF
+#      rule descriptions and SonarQube rule semantics
+#    - Some PDF rules are very specific and may not have exact
+#      SonarQube equivalents
+#    - Multiple SonarQube rules may be needed to cover one PDF rule
+#
+# 2. SONARQUBE VERSION:
+#    - Rule keys are based on SonarQube LTS versions (8.9+)
+#    - Some rules may not exist in older versions
+#    - Commercial editions may have additional rules
+#
+# 3. LANGUAGE PLUGINS:
+#    - C/C++ rules require SonarCFamily plugin
+#    - Python rules require SonarPython plugin
+#    - Java rules are in core SonarQube
+#
+# 4. VERIFICATION:
+#    Before running analysis, verify rules exist on your instance:
+#
+#    curl -u $SONAR_TOKEN: \
+#      "$SONAR_HOST_URL/api/rules/show?key=java:S1104"
+#
+# 5. CUSTOM RULES:
+#    If you have custom SonarQube rules that better match PDF
+#    rules, add them here with your custom rule keys.
+#
+# 6. UNMAPPED RULES:
+#    Some PDF rules (especially JVM-level or deployment-level)
+#    have no SonarQube code-level equivalent:
+#    - ENV04-J: Bytecode verification (JVM flag)
+#    - ENV00-J: Code signing (deployment)
+#    - JNI03-J: JNI direct pointers (C/Java interop)
+#
+# 7. SEVERITY ALIGNMENT:
+#    SonarQube severities may differ from PDF rule severities.
+#    Review and adjust in SonarQube Quality Profile as needed.
+#
+# 8. MAINTENANCE:
+#    This mapping should be reviewed and updated:
+#    - When upgrading SonarQube
+#    - When adding new PDF rules
+#    - When discovering better SonarQube rule matches
+#
+# ============================================================

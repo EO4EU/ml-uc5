@@ -1,0 +1,164 @@
+# Security coding rules for CPP
+# Generated from PDF extraction
+
+- id: "CTR52-CPP"
+  language: cpp
+  severity: high
+  category: memory
+  pattern_type: manual
+  pattern: ""
+  message: Ensure destination containers are large enough to hold copied data to avoid buffer overflows.
+  description: |
+    Copying data into a container that is not large enough to hold that data results in a buffer overflow. To prevent such errors, the size of the destination container must be considered and it should be guaranteed to be large enough for the data being copied.
+    Risk: Copying data to an undersized buffer can lead to buffer overflows, allowing attackers to execute arbitrary code.
+    Detailed Description: Library functions such as std::memcpy, std::memmove, std::memset, and STL algorithms like std::copy, std::fill, and std::transform assume valid output buffer sizes. Non‑compliant examples show use of these functions without ensuring sufficient destination capacity, leading to overflows. Compliant solutions include pre‑allocating the destination container with appropriate size, using back_insert_iterator for per‑element growth, or constructing the destination directly from the source.
+
+- id: "CTR53-CPP"
+  language: cpp
+  severity: high
+  category: iterators
+  pattern_type: manual
+  pattern: ""
+  message: Use valid iterator ranges
+  description: |
+    When iterating over elements of a container, the iterators used must define a valid range. A valid iterator range requires that both iterators refer to the same container, the start iterator precedes the end iterator, and neither iterator is invalidated (in accordance with CTR51-CPP). An empty range where start equals end is also valid.
+    Using an invalid iterator range can lead to undefined behavior similar to a buffer overflow, potentially allowing arbitrary code execution.
+
+- id: "CTR56-CPP"
+  language: cpp
+  severity: high
+  category: memory
+  pattern_type: manual
+  pattern: ""
+  message: Do not use pointer arithmetic, including array subscripting, on polymorphic objects.
+  description: |
+    Pointer arithmetic does not account for polymorphic object sizes, and performing pointer arithmetic or array subscripting on polymorphic objects results in undefined behavior. This can lead to memory corruption and potential arbitrary code execution when arrays are treated polymorphically.
+    The rule prohibits using pointer arithmetic or array indexing on base class pointers that refer to derived class objects, recommending the use of arrays of pointers or STL containers with iterators instead.
+
+- id: "ERR54-CPP"
+  language: cpp
+  severity: medium
+  category: exceptions
+  pattern_type: manual
+  pattern: ""
+  message: Catch handlers must be ordered from most derived to least derived
+  description: |
+    The C++ Standard requires that exception handlers are tried in order of appearance.
+    Therefore, when multiple catch blocks handle exceptions from the same inheritance hierarchy,
+    the handler for the most derived exception type must appear before handlers for its base types.
+    Inverting this order can cause unexpected control flow because a base‑class handler may
+    consume an exception intended for a more specific handler.
+    This rule highlights the risk of inverted catch‑handler priorities and provides
+    non‑compliant and compliant code examples demonstrating correct ordering.
+
+- id: "EXP53-CPP"
+  language: cpp
+  severity: high
+  category: memory
+  pattern_type: manual
+  pattern: ""
+  message: Do not read uninitialized memory
+  description: |
+    Local, automatic variables assume unexpected values if they are read before initialization.
+    Reading uninitialized variables is undefined behavior and can result in unexpected program behavior. In some cases, these security flaws may allow the execution of arbitrary code.
+    The C++ standard specifies that objects with automatic or dynamic storage duration are default-initialized to an indeterminate value unless explicitly initialized. Accessing such values leads to undefined behavior.
+
+- id: "EXP54-CPP"
+  language: cpp
+  severity: high
+  category: "object lifetime"
+  pattern_type: manual
+  pattern: ""
+  message: Do not access an object outside of its lifetime
+  description: |
+    Every object has a well-defined lifetime that begins when properly aligned storage is obtained and initialization completes, and ends when its destructor finishes and the storage is reused or released. Accessing an object or pointer to it outside this lifetime results in undefined behavior.
+    Referencing an object outside of its lifetime can allow an attacker to execute arbitrary code. The rule forbids using pointers or glvalues to access non-static members, call member functions, perform certain casts, or apply lvalue-to-rvalue conversions on objects whose lifetime has not started or has ended.
+
+- id: "EXP61-CPP"
+  language: cpp
+  severity: high
+  category: lifetime
+  pattern_type: manual
+  pattern: ""
+  message: Lambda must not outlive any of its reference-captured objects
+  description: |
+    Lambda expressions may capture objects with automatic storage duration from the enclosing scope. Capturing by reference ties the lambda's use to the referent's lifetime, which is not extended by the lambda object. If a lambda outlives a referenced captured object, accessing it results in undefined behavior. Functions returning lambdas or storing them should avoid capturing by reference. This rule warns that referencing an object outside its lifetime can lead to arbitrary code execution.
+
+- id: "EXP62-CPP"
+  language: cpp
+  severity: high
+  category: memory
+  pattern_type: manual
+  pattern: ""
+  message: Do not access bits of an object representation that are not part of the object's value representation.
+  description: |
+    The rule prohibits accessing any bits of an object's representation that are not part of its value representation. Such accesses can lead to undefined behavior, implementation-defined results, or security vulnerabilities like overwriting vtable pointers. While narrow character types may safely be examined via their object representation, classes and other complex types may contain padding, bit‑fields, or hidden data (e.g., vtables) that must not be accessed.
+    Risk assessment indicates the effects range from implementation-defined behavior to code execution vulnerabilities, classified as high severity.
+
+- id: "MEM51-CPP"
+  language: cpp
+  severity: high
+  category: memory
+  pattern_type: manual
+  pattern: ""
+  message: Properly deallocate dynamically allocated resources
+  description: |
+    Abstract: The C programming language provides several ways to allocate memory (malloc, calloc, realloc) and only free via std::free. C++ adds new, new[], placement new, allocator objects, and corresponding delete, delete[] and deallocation functions.
+    Risk: Passing a pointer to a deallocation function that was not obtained by the matching allocation function results in undefined behavior, which can lead to exploitable vulnerabilities such as double‑free, mismatched deallocation, or freeing non‑heap memory.
+    Detailed description: Ensure that only pointers returned by a specific allocation function are passed to its corresponding deallocation function (e.g., delete with new, delete[] with new[], free with malloc/calloc/realloc). Do not deallocate placement‑new objects, uninitialized pointers, or pointers already freed. Use matching forms of new/delete and avoid mixing C and C++ memory management routines.
+
+- id: "MEM53-CPP"
+  language: cpp
+  severity: high
+  category: memory
+  pattern_type: manual
+  pattern: ""
+  message: Explicitly construct and destruct objects when manually managing object lifetime
+  description: |
+    The rule requires that when manually managing the lifetime of dynamically allocated objects in C++, the programmer must explicitly call constructors (e.g., via placement new or allocator::construct) to initiate an object's lifetime and explicitly invoke destructors (or allocator::destroy) to terminate it. Failing to do so leaves internal state inconsistent, leading to undefined behavior and potential information exposure.
+    This includes cases where memory is obtained via malloc, custom allocators, or other schemes outside of new/delete. Trivial types may be exempted.
+
+- id: "MEM55-CPP"
+  language: cpp
+  severity: high
+  category: memory
+  pattern_type: manual
+  pattern: ""
+  message: Ensure replacement dynamic storage functions meet required semantics and throw on allocation failure
+  description: |
+    Dynamic memory allocation and deallocation functions may be globally replaced by custom implementations. Any replacement must satisfy the semantic requirements of the original function, such as throwing std::bad_alloc when allocation fails. Failure to honor these requirements leads to undefined behavior, including possible null‑pointer dereference and arbitrary code execution. The rule mandates honoring replacement dynamic storage management requirements.
+
+- id: "MSC51-CPP"
+  language: cpp
+  severity: medium
+  category: random-number-generation
+  pattern_type: manual
+  pattern: ""
+  message: Ensure random number generator is properly seeded
+  description: |
+    A pseudorandom number generator (PRNG) is a deterministic algorithm that generates sequences of numbers approximating randomness. Proper seeding ensures each program run produces a different sequence, while failure to seed or using predictable seeds (e.g., default seed or current time) can lead to repeatable sequences.
+    Reusing the same initial state allows attackers to predict future random values, creating vulnerabilities in security protocols. Not all generators can be seeded (e.g., hardware RNGs). The rule applies to algorithmic PRNGs that can be seeded.
+    Noncompliant examples show using default‑seeded std::mt19937 and seeding with std::time, both yielding predictable outputs. A compliant solution uses std::random_device to obtain a nondeterministic seed for the engine.
+
+- id: "OOP55-CPP"
+  language: cpp
+  severity: high
+  category: expressions
+  pattern_type: manual
+  pattern: ""
+  message: Do not use pointer-to-member operators to access nonexistent members
+  description: |
+    The pointer-to-member operators .* and ->* allow accessing a member of an object as if it were a direct member. If the dynamic type of the object expression does not contain the referenced member, or if a null pointer-to-member is used, the behavior is undefined.
+    This rule prohibits using pointer-to-member expressions where the first operand's dynamic type lacks the member being accessed, including cases with null pointer-to-member values. Violations can lead to undefined behavior, program termination, or potential arbitrary code execution.
+    The rule includes abstract explanations of the operators, risk assessment highlighting high severity due to possible exploitation, and examples of noncompliant and compliant code.
+
+- id: "STR52-CPP"
+  language: cpp
+  severity: high
+  category: strings
+  pattern_type: manual
+  pattern: ""
+  message: Use valid references, pointers, and iterators when accessing std::basic_string elements
+  description: |
+    Since std::basic_string is a container of characters, this rule requires using valid references, pointers, and iterators to reference its elements. Invalidated references, pointers, or iterators can occur when the string is passed as a non-const reference to standard library functions or when calling most non‑const member functions, leading to undefined behavior and potential security risks such as arbitrary code execution. The rule advises updating iterators after modifications (e.g., using the iterator returned by insert) or delaying pointer acquisition until after mutations (e.g., obtaining data() after replace).
+
