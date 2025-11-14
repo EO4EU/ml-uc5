@@ -97,6 +97,9 @@ build_image:
 scan_image:
   rules:
     - if: '$CI_COMMIT_BRANCH == "main" && $CI_COMMIT_MESSAGE =~ /trivy/'
+      variables: 
+        REPO_BRANCH: main
+        HELM_BRANCH: main
     - when: never
   extends: [.dagger]
   tags: [dagger]
