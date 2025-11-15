@@ -145,6 +145,11 @@ scan_image:
           --sonar-project-key $SONAR_PROJECT_KEY \
           --output-name sonar-report.sarif \
           export --path /builds/$REPO_NAMESPACE/$REPO
+        dagger call synthetic-report 
+          --sbom-file /builds/$REPO_NAMESPACE/$REPO/sbom-report.cdx.json 
+          --sarif-file /builds/$REPO_NAMESPACE/$REPO/sonar-report.sarif 
+          --severity-threshold HIGH 
+          export --path /builds/$REPO_NAMESPACE/$REPO
       fi
   artifacts:
     when: always
@@ -153,6 +158,7 @@ scan_image:
       - vulnerabilities.html
       - sbom-report.html
       - sonar-report.html
+      - synthetic-report.html
 push_image:
   extends: [.dagger]
   tags: [dagger]
