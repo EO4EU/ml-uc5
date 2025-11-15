@@ -13,6 +13,7 @@
     HELM: helm-repo
     COOKIECUTTER_BRANCH: inference-server-uc
     YAML_RULES: rules/python_rules.yaml
+    CONTEXT: build
   rules:
   - if: $CI_COMMIT_BRANCH == "main"
     variables: 
@@ -69,7 +70,7 @@ update_domain:
         export CLUSTER_DOMAIN=$(grep 'virtual_service_cluster_domain:' \
           cookiecutter-config.yaml | \
           awk '{print $2}' | tr -d '"')
-        find build -type f -exec sed -i "s/\.svc\..*\.local/.svc.$CLUSTER_DOMAIN.local/g" {} \;
+        find $CONTEXT -type f -exec sed -i "s/\.svc\..*\.local/.svc.$CLUSTER_DOMAIN.local/g" {} \;
         git config user.email "federico.fornari@ecmwf.int"
         git config user.name "Cookiecutter"
         git add --all
@@ -84,7 +85,7 @@ build_image:
   script:
     - cd $REPO
     - |
-      if git diff --name-only HEAD~1 | grep -Eq '^(build/)'; then
+      if git diff --name-only HEAD~1 | grep -Eq '^('$CONTEXT'/)'; then
         dagger call build \
         --bucket $BUCKET \
         --endpoint https://$MINIO \
@@ -92,7 +93,7 @@ build_image:
         --secret env:S3_SECRET_KEY \
         --repo $REPO \
         --tag $TAG \
-        --wkd build
+        --wkd $CONTEXT
       fi
 scan_image:
   rules:
@@ -111,7 +112,7 @@ scan_image:
   script:
     - cd $REPO
     - |
-      if git diff --name-only HEAD~1 | grep -Eq '^(build/)'; then
+      if git diff --name-only HEAD~1 | grep -Eq '^('$CONTEXT'/)'; then
         dagger call scan \
         --bucket $BUCKET \
         --endpoint https://$MINIO \
@@ -138,7 +139,7 @@ scan_image:
         /builds/$REPO_NAMESPACE/$REPO/sbom-report.html
         dagger call analyze-with-sonarqube \
           --yaml-rules $YAML_RULES \
-          --source-directory build \
+          --source-directory $CONTEXT \
           --sonar-host-url $SONAR_HOST_URL \
           --sonar-token $SONAR_TOKEN \
           --sonar-project-key $SONAR_PROJECT_KEY \
@@ -164,7 +165,7 @@ push_image:
   script:
     - cd $REPO
     - |
-      if git diff --name-only HEAD~1 | grep -Eq '^(build/)'; then
+      if git diff --name-only HEAD~1 | grep -Eq '^('$CONTEXT'/)'; then
         dagger call push \
           --bucket $BUCKET \
           --endpoint https://$MINIO \
@@ -178,7 +179,7 @@ push_image:
           --dsttag $TAG \
           --username $CI_REPO_USERNAME \
           --password env:CI_REPO_PASSWORD \
-          --wkd build
+          --wkd $CONTEXT
       fi
 update_helm:
   extends: [.dagger]
@@ -190,7 +191,7 @@ update_helm:
   script:
     - cd $REPO
     - |
-      if git diff --name-only HEAD~1 | grep -Eq '^(build/)'; then
+      if git diff --name-only HEAD~1 | grep -Eq '^('$CONTEXT'/)'; then
         sed -i 's/\(  service_image_tag: "\)\(.*\)/\1'"$TAG"'"/g' cookiecutter-config.yaml
         git config user.email "federico.fornari@ecmwf.int"
         git config user.name "Cookiecutter"
@@ -232,7 +233,7 @@ clean_registry:
   script:
     - cd $REPO
     - |
-      if git diff --name-only HEAD~1 | grep -Eq '^(build/)'; then
+      if git diff --name-only HEAD~1 | grep -Eq '^('$CONTEXT'/)'; then
         dagger call clean \
         --bucket $BUCKET \
         --endpoint https://$MINIO \
