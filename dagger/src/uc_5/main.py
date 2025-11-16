@@ -301,7 +301,7 @@ class Uc5:
     async def synthetic_report(
         self,
         sarif_file: Annotated[File, Doc("Sonar SARIF file, e.g. sonar-report.sarif")],
-        sbom_file: Annotated[File, Doc("CycloneDX SBOM JSON file, e.g. sbom-report.cdx.json")] = None,
+        sbom_file: Annotated[File | None, Doc("CycloneDX SBOM JSON file, e.g. sbom-report.cdx.json")] = None,
         severity_threshold: Annotated[str, Doc("Minimum vulnerability severity to include (CRITICAL/HIGH/MEDIUM/LOW/INFO)")] = "HIGH",
     ) -> Annotated[Directory, Doc("Directory containing synthetic report HTML and JSON summary")]:
         """
