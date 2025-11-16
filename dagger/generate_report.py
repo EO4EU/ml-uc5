@@ -247,7 +247,7 @@ def write_html(path: str, summary: Dict[str, Any]):
 
 def main_cli():
     parser = argparse.ArgumentParser(description='Generate synthetic report from CycloneDX SBOM and SARIF')
-    parser.add_argument('--sbom', required=True, help='Path to sbom-report.cdx.json')
+    parser.add_argument('--sbom', required=False, default=None, help='Path to sbom-report.cdx.json (optional)')
     parser.add_argument('--sarif', required=True, help='Path to sonar-report.sarif')
     parser.add_argument('--threshold', default='HIGH', help='Minimum severity to include (CRITICAL/HIGH/MEDIUM/LOW/INFO')
     parser.add_argument('--outdir', default='/output', help='Output directory')
@@ -257,7 +257,12 @@ def main_cli():
     thr = args.threshold.upper()
     thr_v = sev_val(thr)
 
-    sbom = load_json(args.sbom)
+    # load SBOM if provided; SBOM is optional because some projects contain only source code
+    if args.sbom:
+        sbom = load_json(args.sbom)
+    else:
+        sbom = {}
+        print('No SBOM provided; skipping SBOM-based vulnerability extraction')
     sarif = load_json(args.sarif)
 
     # extract base image info from SBOM metadata.component if present

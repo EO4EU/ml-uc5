@@ -300,8 +300,8 @@ class Uc5:
     @function
     async def synthetic_report(
         self,
-        sbom_file: Annotated[File, Doc("CycloneDX SBOM JSON file, e.g. sbom-report.cdx.json")],
         sarif_file: Annotated[File, Doc("Sonar SARIF file, e.g. sonar-report.sarif")],
+        sbom_file: Annotated[File, Doc("CycloneDX SBOM JSON file, e.g. sbom-report.cdx.json")] = None,
         severity_threshold: Annotated[str, Doc("Minimum vulnerability severity to include (CRITICAL/HIGH/MEDIUM/LOW/INFO)")] = "HIGH",
     ) -> Annotated[Directory, Doc("Directory containing synthetic report HTML and JSON summary")]:
         """
@@ -310,26 +310,25 @@ class Uc5:
         report plus a JSON summary. Returns a directory with
         `/output/synthetic-report.html` and `/output/synthetic-report.json`.
         """
-
         module_source = dag.current_module().source()
         report_script = module_source.file("generate_report.py")
-
+        container = dag.container().from_("python:3.11-slim")
+        # mount SBOM only if provided (SBOM is optional for source-only projects)
+        if sbom_file is not None:
+            container = container.with_mounted_file("/input/sbom.json", sbom_file)
         container = (
-            dag.container()
-            .from_("python:3.11-slim")
-            .with_mounted_file("/input/sbom.json", sbom_file)
+            container
             .with_mounted_file("/input/sonar.sarif", sarif_file)
             .with_mounted_file("/workspace/generate_report.py", report_script)
             .with_exec(["mkdir", "-p", "/output"])
             .with_env_variable("THRESHOLD", severity_threshold.upper())
-            .with_exec([
-                "python3", "/workspace/generate_report.py",
-                "--sbom", "/input/sbom.json",
-                "--sarif", "/input/sonar.sarif",
-                "--threshold", severity_threshold.upper(),
-                "--outdir", "/output",
-            ])
         )
+        # build command args dynamically so we only pass --sbom when available
+        cmd = ["python3", "/workspace/generate_report.py"]
+        if sbom_file is not None:
+            cmd += ["--sbom", "/input/sbom.json"]
+        cmd += ["--sarif", "/input/sonar.sarif", "--threshold", severity_threshold.upper(), "--outdir", "/output"]
+        container = container.with_exec(cmd)
         return container.directory("/output")
 
     @function
