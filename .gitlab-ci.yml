@@ -137,19 +137,19 @@ scan_image:
         export \
         --path \
         /builds/$REPO_NAMESPACE/$REPO/sbom-report.html
-        dagger call analyze-with-sonarqube \
-          --yaml-rules $YAML_RULES \
-          --source-directory $CONTEXT \
-          --sonar-host-url $SONAR_HOST_URL \
-          --sonar-token $SONAR_TOKEN \
-          --sonar-project-key $SONAR_PROJECT_KEY \
-          --output-name sonar-report.sarif \
-          export --path /builds/$REPO_NAMESPACE/$REPO
-        dagger call synthetic-report 
-          --sbom-file /builds/$REPO_NAMESPACE/$REPO/sbom-report.cdx.json 
-          --sarif-file /builds/$REPO_NAMESPACE/$REPO/sonar-report.sarif 
-          --severity-threshold HIGH 
-          export --path /builds/$REPO_NAMESPACE/$REPO
+      dagger call analyze-with-sonarqube \
+        --yaml-rules $YAML_RULES \
+        --source-directory $CONTEXT \
+        --sonar-host-url $SONAR_HOST_URL \
+        --sonar-token $SONAR_TOKEN \
+        --sonar-project-key $SONAR_PROJECT_KEY \
+        --output-name sonar-report.sarif \
+        export --path /builds/$REPO_NAMESPACE/$REPO/
+      dagger call synthetic-report \
+        --sbom-file /builds/$REPO_NAMESPACE/$REPO/sbom-report.cdx.json \
+        --sarif-file /builds/$REPO_NAMESPACE/$REPO/sonar-report.sarif \
+        --severity-threshold HIGH \
+        export --path /builds/$REPO_NAMESPACE/$REPO
       fi
   artifacts:
     when: always
