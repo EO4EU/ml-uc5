@@ -136,7 +136,7 @@ scan_image:
         --wkd /builds/$REPO_NAMESPACE/$REPO \
         export \
         --path \
-        /builds/$REPO_NAMESPACE/$REPO/sbom-report.html
+        /builds/$REPO_NAMESPACE/$REPO
       dagger call analyze-with-sonarqube \
         --yaml-rules $YAML_RULES \
         --source-directory $CONTEXT \
