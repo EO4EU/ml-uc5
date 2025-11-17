@@ -301,10 +301,10 @@ def create_app():
                                                       listFiles[prefix][band]=path
                                                 list_files(path)
                                     def check_list_files_complete(listFiles):
-                                          completeFiles = []
+                                          completeFiles = {}
                                           for prefix, bands in listFiles.items():
                                                 if all(band in bands for band in ['02_10m','03_10m','04_10m','08_10m','11_20m','12_20m']):
-                                                      completeFiles.append(cp.joinpath(prefix))
+                                                      completeFiles[prefix] = bands
                                           listFiles=completeFiles
                                           return listFiles
                                     list_files(cp)
