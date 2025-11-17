@@ -373,18 +373,22 @@ def create_app():
                                                 if h!=h_band or w!=w_band:
                                                       logger_workflow.debug("Different shape found for band "+band_name+" h "+str(h)+" w "+str(w)+" h_band "+str(h_band)+" w_band "+str(w_band)+" Stopping treating folder "+str(folder),extra={'status': 'INFO'})
                                                       return
-                                          bands_data['B3']=bands_data['B03_10m']
-                                          bands_data['B4']=bands_data['B04_10m']
-                                          bands_data['B2']=bands_data['B02_10m']
-                                          bands_data['B8']=bands_data['B08_10m']
-                                          bands_data['B11']=bands_data['B11_20m']
-                                          bands_data['B12']=bands_data['B12_20m']
+                                          bands_data['B3']=bands_data['03_10m']
+                                          bands_data['B4']=bands_data['04_10m']
+                                          bands_data['B2']=bands_data['02_10m']
+                                          bands_data['B8']=bands_data['08_10m']
+                                          bands_data['B11']=bands_data['11_20m']
+                                          bands_data['B12']=bands_data['12_20m']
                                           if 'SCL_20m' in bands_data:
                                                 bands_data['SCL']=bands_data['SCL_20m']
-                                          del bands_data['B03_10m']
-                                          del bands_data['B04_10m']
-                                          del bands_data['B02_10m']
-                                          del bands_data['B08_10m']
+                                          del bands_data['03_10m']
+                                          del bands_data['04_10m']
+                                          del bands_data['02_10m']
+                                          del bands_data['08_10m']
+                                          del bands_data['11_20m']
+                                          del bands_data['12_20m']
+                                          if 'SCL_20m' in bands_data:
+                                                del bands_data['SCL_20m']
                                           BANDS_ALL=['B11','B12','B2','B3','B4','B8','SCL']
                                           def data_generator():
                                                 listvalue=[]
