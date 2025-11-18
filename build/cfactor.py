@@ -545,7 +545,7 @@ def create_app():
                                           logger_workflow.debug('start writing output to '+str(outputPath), extra={'status': 'DEBUG'})
                                           with outputPath.open('wb') as outputFile,rasterio.io.MemoryFile() as memfile:
                                                 #with rasterio.open(outputFile,mode='w',**data["meta"][ALL_BANDS[band_number]]) as file2:
-                                                with memfile.open(driver="GTiff",width=w,height=h,count=1,dtype="float32",crs=metaData["B03"]["crs"],transform=metaData["B03"]["transform"],compress='ZSTD',nodata=-1) as file2:
+                                                with memfile.open(driver="GTiff",width=w,height=h,count=1,dtype="float32",crs=metaData["03_10m"]["crs"],transform=metaData["03_10m"]["transform"],compress='ZSTD',nodata=-1) as file2:
                                                       file2.write(array, indexes=1)
                                                       file2.set_band_description(1, 'C-Factor')
                                                       file2.set_band_unit(1,'Unitless')
