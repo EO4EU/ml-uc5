@@ -120,18 +120,18 @@ class ThroughputMeter:
                     pixels_remaining = self.total_pixels - self.total_items
                     est_time_current_file = pixels_remaining / current_file_throughput
                     total_estimated_time = est_time_current_file + est_remaining_files_time
-                    time_est_msg = f" | File {self.file_number}/{self.total_number} | Avg time/file: {avg_time_per_file:.1f}s | Est. total remaining: {total_estimated_time:.1f}s"
+                    time_est_msg = f" | File {self.file_number}/{self.total_number} \n Avg time/file: {avg_time_per_file:.1f}s \n Est. total remaining: {total_estimated_time:.1f}s"
                 else:
-                    time_est_msg = f" | File {self.file_number}/{self.total_number} | Avg time/file: {avg_time_per_file:.1f}s | Est. remaining: {est_remaining_files_time:.1f}s"
+                    time_est_msg = f" | File {self.file_number}/{self.total_number} \n Avg time/file: {avg_time_per_file:.1f}s \n Est. remaining: {est_remaining_files_time:.1f}s"
             else:
                 # First file: estimate assuming all files have same number of pixels
                 if self.total_pixels > 0 and current_file_throughput > 0:
                     pixels_remaining = self.total_pixels - self.total_items
                     est_time_current_file = pixels_remaining / current_file_throughput
                     est_time_all_files = est_time_current_file + ((self.total_number - self.file_number) * self.total_pixels / current_file_throughput)
-                    time_est_msg = f" | File {self.file_number}/{self.total_number} | Est. total remaining: {est_time_all_files:.1f}s (pixel-based)"
+                    time_est_msg = f" \n File {self.file_number}/{self.total_number} \n Est. total remaining: {est_time_all_files:.1f}s (pixel-based)"
                 else:
-                    time_est_msg = f" | File {self.file_number}/{self.total_number}"
+                    time_est_msg = f" \n File {self.file_number}/{self.total_number}"
 
             if self.logger:
                   self.logger.info(f"{reqs_per_s:.2f} req/s, {items_per_s:.0f} pixels/s \n "
@@ -505,7 +505,7 @@ def create_app():
                                                       return await handle_one(data,sem,triton_client=triton_client)
                                                 return (result,v2,v3)
 
-                                          async def run_pipeline(max_concurrent_tasks=10,max_in_flight=60,file_number=0,total_number=1,timings_file=[],total_pixels=1):
+                                          async def run_pipeline(max_concurrent_tasks=100,max_in_flight=600,file_number=0,total_number=1,timings_file=[],total_pixels=1):
                                                 sem = asyncio.Semaphore(max_concurrent_tasks)
                                                 tasks = set()
                                                 meter = ThroughputMeter(report_every=60.0, logger=logger_workflow, file_number=file_number, total_number=total_number, timings=timings_file, total_pixels=total_pixels)
