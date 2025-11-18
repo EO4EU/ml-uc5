@@ -541,7 +541,7 @@ def create_app():
                                           array = asyncio.run(run_pipeline(file_number=file_index, total_number=total_number, timings_file=file_timings,total_pixels=h*w))
                                           logger_workflow.debug('processing done', extra={'status': 'DEBUG'})
 
-                                          outputPath=cpOutput.joinpath(prefix.name+"_cfactor.tiff")
+                                          outputPath=cpOutput.joinpath(prefix+"_cfactor.tiff")
                                           logger_workflow.debug('start writing output to '+str(outputPath), extra={'status': 'DEBUG'})
                                           with outputPath.open('wb') as outputFile,rasterio.io.MemoryFile() as memfile:
                                                 #with rasterio.open(outputFile,mode='w',**data["meta"][ALL_BANDS[band_number]]) as file2:
