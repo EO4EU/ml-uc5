@@ -134,9 +134,7 @@ class ThroughputMeter:
                     time_est_msg = f" \n File {self.file_number}/{self.total_number}"
 
             if self.logger:
-                  self.logger.info(f"{reqs_per_s:.2f} req/s, {items_per_s:.0f} pixels/s \n "
-                                     f"(avg: {avg_reqs:.2f} req/s, {avg_items:.0f} pixels/s) \n"
-                                     f"Current file: {current_file_throughput:.0f} pixels/s, {current_file_time:.1f}s elapsed{current_file_est_msg}\n"
+                  self.logger.info(f"Current file: {current_file_throughput:.0f} pixels/s, {current_file_time:.1f}s elapsed{current_file_est_msg}\n"
                                      f"{time_est_msg}", 
                                      extra={'status': 'INFO','overwrite':True})
 
@@ -505,7 +503,7 @@ def create_app():
                                                       return await handle_one(data,sem,triton_client=triton_client)
                                                 return (result,v2,v3)
 
-                                          async def run_pipeline(max_concurrent_tasks=100,max_in_flight=600,file_number=0,total_number=1,timings_file=[],total_pixels=1):
+                                          async def run_pipeline(max_concurrent_tasks=50,max_in_flight=60,file_number=0,total_number=1,timings_file=[],total_pixels=1):
                                                 sem = asyncio.Semaphore(max_concurrent_tasks)
                                                 tasks = set()
                                                 meter = ThroughputMeter(report_every=60.0, logger=logger_workflow, file_number=file_number, total_number=total_number, timings=timings_file, total_pixels=total_pixels)
