@@ -7,7 +7,7 @@ def get_current_namespace():
         with open("/var/run/secrets/kubernetes.io/serviceaccount/namespace", "r") as f:
             return f.read().strip()
     except FileNotFoundError:
-        # Handle the case where the file doesn't exist 
+        # Handle the case where the file doesn't exist
         return ''
     
 def get_current_pod_name():
