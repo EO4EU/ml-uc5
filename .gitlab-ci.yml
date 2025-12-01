@@ -145,9 +145,15 @@ scan_image:
         --sonar-project-key $SONAR_PROJECT_KEY \
         --output-name sonar-report.sarif \
         export --path /builds/$REPO_NAMESPACE/$REPO/
+      dagger call analyze-with-gitguardian \
+        --gitguardian-api-key env:GITGUARDIAN_API_KEY \
+        --source-directory $CONTEXT \
+        --output-name gitguardian-report.sarif \
+        export --path /builds/$REPO_NAMESPACE/$REPO/
       dagger call synthetic-report \
+        --sonar-sarif /builds/$REPO_NAMESPACE/$REPO/sonar-report.sarif \
+        --gg-sarif /builds/$REPO_NAMESPACE/$REPO/gitguardian-report.sarif \
         --sbom-file /builds/$REPO_NAMESPACE/$REPO/sbom-report.cdx.json \
-        --sarif-file /builds/$REPO_NAMESPACE/$REPO/sonar-report.sarif \
         --severity-threshold HIGH \
         export --path /builds/$REPO_NAMESPACE/$REPO
       fi

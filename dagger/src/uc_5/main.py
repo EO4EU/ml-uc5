@@ -298,38 +298,104 @@ class Uc5:
         return container.directory("/output")
 
     @function
+    async def analyze_with_gitguardian(
+        self,
+        gitguardian_api_key: Annotated[dagger.Secret, Doc("GitGuardian API Key")],
+        source_directory: Annotated[Directory, Doc("Source code directory to analyze")],
+        output_name: Annotated[str, Doc("Name for the SARIF output file")] = "gitguardian-results.sarif",
+    ) -> Annotated[Directory, Doc("Directory containing SARIF JSON report and HTML report")]:
+        """
+        Run GitGuardian compliance analysis.
+        """
+        container = (
+            dag.container()
+            .from_("gitguardian/ggshield:latest")
+            .with_user("root")
+            .with_exec(["sh", "-c", "apt-get update && apt-get install -y python3-pip"])
+            .with_exec(["pip3", "install", "--no-cache-dir", "pyyaml", "requests", "sarif-tools"])
+            .with_mounted_directory("/src", source_directory)
+            .with_workdir("/src")
+            .with_directory("/output", dag.directory())
+            .with_secret_variable("GITGUARDIAN_API_KEY", gitguardian_api_key)
+        )
+        py_run_ggshield = r"""
+import os, sys, subprocess, shlex
+out_path = "/output/{output}"
+exclude_args = []
+gitdir = ".git"
+if os.path.isdir(gitdir):
+    for root, _, files in os.walk(gitdir):
+        for fn in files:
+            rel = os.path.join(root, fn)
+            exclude_args += ["--exclude", rel]
+cmd = ["ggshield", "secret", "scan", "path", "--format", "sarif", "-r", "-y", "."] + exclude_args
+env = os.environ.copy()
+proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+if proc.returncode not in (0,):
+    sys.stderr.buffer.write(proc.stderr)
+with open(out_path, "wb") as f:
+    f.write(proc.stdout)
+print("WROTE SARIF ->", out_path)
+""".format(output=output_name)
+    
+        container = (
+            container
+            .with_exec([
+                "python3", "-c", py_run_ggshield
+            ])
+            .with_exec([
+                "sarif", "html",
+                f"/output/{output_name}",
+                "-o", f"/output/{output_name.replace('.sarif', '.html')}"
+            ])
+        )
+    
+        return container.directory("/output")
+    
+    
+    @function
     async def synthetic_report(
         self,
-        sarif_file: Annotated[File, Doc("Sonar SARIF file, e.g. sonar-report.sarif")],
+        sonar_sarif: Annotated[File, Doc("Sonar SARIF file, e.g. sonar-report.sarif")],
+        gg_sarif: Annotated[File | None, Doc("GitGuardian SARIF file, e.g. gitguardian-report.sarif")] = None,
         sbom_file: Annotated[File | None, Doc("CycloneDX SBOM JSON file, e.g. sbom-report.cdx.json")] = None,
         severity_threshold: Annotated[str, Doc("Minimum vulnerability severity to include (CRITICAL/HIGH/MEDIUM/LOW/INFO)")] = "HIGH",
     ) -> Annotated[Directory, Doc("Directory containing synthetic report HTML and JSON summary")]:
         """
-        Combine SBOM CycloneDX JSON and Sonar SARIF, filter vulnerabilities above
-        `severity_threshold` and error-level Sonar issues, and produce an HTML
-        report plus a JSON summary. Returns a directory with
+        Combine SBOM CycloneDX JSON, Sonar SARIF, and optional GitGuardian SARIF,
+        filter vulnerabilities above `severity_threshold` and error-level issues,
+        and produce an HTML report plus a JSON summary. Returns a directory with
         `/output/synthetic-report.html` and `/output/synthetic-report.json`.
         """
         module_source = dag.current_module().source()
         report_script = module_source.file("generate_report.py")
+    
         container = dag.container().from_("python:3.11-slim")
-        # mount SBOM only if provided (SBOM is optional for source-only projects)
+    
         if sbom_file is not None:
             container = container.with_mounted_file("/input/sbom.json", sbom_file)
-        container = (
-            container
-            .with_mounted_file("/input/sonar.sarif", sarif_file)
-            .with_mounted_file("/workspace/generate_report.py", report_script)
-            .with_exec(["mkdir", "-p", "/output"])
-            .with_env_variable("THRESHOLD", severity_threshold.upper())
-        )
-        # build command args dynamically so we only pass --sbom when available
+    
+        container = container.with_mounted_file("/input/sonar.sarif", sonar_sarif)
+    
+        if gg_sarif is not None:
+            container = container.with_mounted_file("/input/gitguardian.sarif", gg_sarif)
+    
+        container = container.with_mounted_file("/workspace/generate_report.py", report_script)
+        container = container.with_exec(["mkdir", "-p", "/output"])
+        container = container.with_env_variable("THRESHOLD", severity_threshold.upper())
+    
         cmd = ["python3", "/workspace/generate_report.py"]
         if sbom_file is not None:
             cmd += ["--sbom", "/input/sbom.json"]
-        cmd += ["--sarif", "/input/sonar.sarif", "--threshold", severity_threshold.upper(), "--outdir", "/output"]
+        cmd += ["--sonar-sarif", "/input/sonar.sarif"]
+        if gg_sarif is not None:
+            cmd += ["--gg-sarif", "/input/gitguardian.sarif"]
+        cmd += ["--threshold", severity_threshold.upper(), "--outdir", "/output"]
+    
         container = container.with_exec(cmd)
+    
         return container.directory("/output")
+
 
     @function
     async def encode(

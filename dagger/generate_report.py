@@ -4,18 +4,10 @@ import html
 import argparse
 from typing import Dict, Any, List
 
-
+# --- Sev utility and JSON loader ---
 def sev_val(s: str) -> int:
-    m = {
-        'CRITICAL': 5,
-        'HIGH': 4,
-        'MEDIUM': 3,
-        'LOW': 2,
-        'INFO': 1,
-        'UNKNOWN': 0,
-    }
+    m = {'CRITICAL': 5,'HIGH': 4,'MEDIUM': 3,'LOW': 2,'INFO': 1,'UNKNOWN': 0}
     return m.get((s or '').upper(), 0)
-
 
 def load_json(path: str):
     try:
@@ -24,232 +16,166 @@ def load_json(path: str):
     except Exception:
         return {}
 
-
+# --- Vulnerabilities extraction ---
 def extract_vulnerabilities(sbom: dict, thr_v: int):
     vulns: List[Dict[str, Any]] = []
     if not isinstance(sbom, dict):
         return vulns
 
-    # build a map of components by bom-ref for resolving 'affects' refs
-    components = {}
-    for c in sbom.get('components', []) or []:
-        ref = c.get('bom-ref')
-        if ref:
-            components[ref] = c
-
-    # Top-level vulnerabilities array (some CycloneDX outputs)
-    if 'vulnerabilities' in sbom and isinstance(sbom['vulnerabilities'], list):
-        for v in sbom['vulnerabilities']:
-            # prefer CVSSv3/3.1 ratings when present
-            sev = 'UNKNOWN'
-            ratings = v.get('ratings') or []
-
-            # 1) CVSSv3 preferred
+    components = {c.get('bom-ref'): c for c in sbom.get('components', []) or [] if c.get('bom-ref')}
+    
+    # Top-level vulnerabilities
+    for v in sbom.get('vulnerabilities', []) or []:
+        sev = 'UNKNOWN'
+        ratings = v.get('ratings') or []
+        for r in ratings:
+            if 'CVSSV3' in (r.get('method') or '').upper():
+                sev = (r.get('severity') or '').upper() or sev
+                break
+        if sev == 'UNKNOWN':
             for r in ratings:
-                method = (r.get('method') or '').upper()
-                if 'CVSSV3' in method:
+                src = r.get('source') or {}
+                if isinstance(src, dict) and src.get('name','').lower() == 'nvd':
                     sev = (r.get('severity') or '').upper() or sev
                     break
-
-            # 2) fallback to NVD source rating
-            if sev == 'UNKNOWN':
-                for r in ratings:
-                    src = r.get('source') or {}
-                    if isinstance(src, dict) and src.get('name', '').lower() == 'nvd':
-                        sev = (r.get('severity') or '').upper() or sev
-                        break
-
-            # 3) fallback to best (highest) rating among all ratings
-            if sev == 'UNKNOWN' and isinstance(ratings, list) and ratings:
-                best = max((sev_val(r.get('severity') or '') for r in ratings), default=0)
-                for name, val in [('CRITICAL', 5), ('HIGH', 4), ('MEDIUM', 3), ('LOW', 2), ('INFO', 1)]:
-                    if val == best:
-                        sev = name
-                        break
-
-            # 4) final fallback to explicit fields
-            if sev == 'UNKNOWN':
-                sev = (v.get('severity') or v.get('severityName') or 'UNKNOWN').upper()
-
-            if sev_val(sev) >= thr_v:
-                vid = v.get('id') or ''
-                desc = v.get('description') or v.get('detail') or ''
-
-                # 1) prefer explicit 'affects' ref -> resolve to component name
-                pkg = ''
-                affects = v.get('affects') or []
-                if isinstance(affects, list) and affects:
-                    ref = affects[0].get('ref') if isinstance(affects[0], dict) else affects[0]
-                    if isinstance(ref, str):
-                        # if ref points to a component bom-ref, use that component's name
-                        comp = components.get(ref)
-                        if comp:
-                            pkg = comp.get('name') or comp.get('purl') or ref
-                        else:
-                            # if ref is a purl, try to parse a human name
-                            if ref.startswith('pkg:'):
-                                try:
-                                    last = ref.split('/')[-1]
-                                    pkg = last.split('@')[0]
-                                except Exception:
-                                    pkg = ref
-                            else:
-                                pkg = ref
-
-                # 2) fall back to common fields if not found
-                if not pkg:
-                    raw_pkg = v.get('component') or v.get('module') or v.get('package') or ''
-                    if isinstance(raw_pkg, dict):
-                        pkg = raw_pkg.get('name') or raw_pkg.get('bom-ref') or str(raw_pkg)
-                    else:
-                        # avoid using vulnerability id as package if possible
-                        if raw_pkg and raw_pkg != vid and not (isinstance(raw_pkg, str) and (raw_pkg.lower().startswith('cve') or raw_pkg.lower().startswith('vuln'))):
-                            pkg = raw_pkg
-                        else:
-                            pkg = v.get('module') or v.get('package') or v.get('componentName') or v.get('component_name') or vid
-
-                vulns.append({'id': vid, 'package': pkg, 'severity': sev, 'description': desc})
-        return vulns
-
-    # Component-based vulnerabilities
-    for c in sbom.get('components', []):
-        for v in c.get('vulnerabilities', []):
-            sev = (v.get('severity') or 'UNKNOWN').upper()
-            if sev_val(sev) >= thr_v:
-                pkg = c.get('name') or c.get('bom-ref') or c.get('id')
-                desc = v.get('description', '')
-                vulns.append({'package': pkg, 'severity': sev, 'description': desc, 'id': v.get('id')})
-
+        if sev == 'UNKNOWN' and ratings:
+            best = max((sev_val(r.get('severity') or '') for r in ratings), default=0)
+            for name, val in [('CRITICAL',5),('HIGH',4),('MEDIUM',3),('LOW',2),('INFO',1)]:
+                if val == best:
+                    sev = name
+                    break
+        if sev == 'UNKNOWN':
+            sev = (v.get('severity') or v.get('severityName') or 'UNKNOWN').upper()
+        
+        if sev_val(sev) >= thr_v:
+            vid = v.get('id') or ''
+            desc = v.get('description') or v.get('detail') or ''
+            pkg = ''
+            affects = v.get('affects') or []
+            if isinstance(affects,list) and affects:
+                ref = affects[0].get('ref') if isinstance(affects[0],dict) else affects[0]
+                if isinstance(ref,str):
+                    comp = components.get(ref)
+                    pkg = comp.get('name') or comp.get('purl') or ref if comp else ref
+            if not pkg:
+                raw_pkg = v.get('component') or v.get('module') or v.get('package') or ''
+                if isinstance(raw_pkg, dict):
+                    pkg = raw_pkg.get('name') or raw_pkg.get('bom-ref') or str(raw_pkg)
+                else:
+                    pkg = raw_pkg or v.get('module') or v.get('package') or vid
+            vulns.append({'id': vid,'package': pkg,'severity': sev,'description': desc})
     return vulns
 
-
+# --- SARIF errors ---
 def extract_sarif_errors(sarif: dict):
     errors: List[Dict[str, Any]] = []
     if not isinstance(sarif, dict):
         return errors
-
     for run in sarif.get('runs', []):
-        # build map of ruleId -> defaultConfiguration.level
         rule_level = {}
-        driver = run.get('tool', {}).get('driver', {})
-        for rule in driver.get('rules', []) or []:
+        driver = run.get('tool',{}).get('driver',{})
+        for rule in driver.get('rules',[]) or []:
             rid = rule.get('id')
-            lvl = (rule.get('defaultConfiguration', {}).get('level') or '').lower()
+            lvl = (rule.get('defaultConfiguration',{}).get('level') or '').lower()
             if rid:
                 rule_level[rid] = lvl
-
-        for res in run.get('results', []):
-            # result level may be omitted; fall back to rule default
-            level = (res.get('level') or '').lower()
-            if not level:
-                level = rule_level.get(res.get('ruleId'), '')
-
+        for res in run.get('results',[]) or []:
+            level = (res.get('level') or '').lower() or rule_level.get(res.get('ruleId'),'')
             if level == 'error':
-                msg = res.get('message', {})
-                text = msg.get('text') if isinstance(msg, dict) else str(msg)
-                # extract file and line from first location if available
+                msg = res.get('message',{})
+                text = msg.get('text') if isinstance(msg,dict) else str(msg)
                 file_line = ''
-                locs = res.get('locations', []) or []
-                if locs and isinstance(locs, list):
+                locs = res.get('locations',[]) or []
+                if locs:
                     try:
-                        pl = locs[0].get('physicalLocation', {})
-                        art = pl.get('artifactLocation', {})
-                        uri = art.get('uri') or art.get('uri', '')
-                        region = pl.get('region', {})
+                        pl = locs[0].get('physicalLocation',{})
+                        art = pl.get('artifactLocation',{})
+                        uri = art.get('uri') or ''
+                        region = pl.get('region',{})
                         start = region.get('startLine') or region.get('startColumn')
                         if uri:
-                            if start:
-                                file_line = f"{uri}:{start}"
-                            else:
-                                file_line = uri
+                            file_line = f"{uri}:{start}" if start else uri
                     except Exception:
-                        file_line = ''
-
-                errors.append({'rule': res.get('ruleId'), 'message': text, 'locations': locs, 'file_line': file_line})
-
+                        pass
+                errors.append({'rule': res.get('ruleId'),'message': text,'locations': locs,'file_line': file_line})
     return errors
 
+# --- HTML writer ---
+def write_html(path: str, summary: Dict[str,Any]):
+    vulns = summary.get('vulnerabilities',[])
+    sonar_errors = summary.get('sonar_errors',[])
+    gg_errors = summary.get('gg_errors',[])
+    counts = summary.get('counts',{})
 
-def write_html(path: str, summary: Dict[str, Any]):
-    vulns = summary.get('vulnerabilities', [])
-    errors = summary.get('errors', [])
-    counts = summary.get('counts', {})
-
-    with open(path, 'w', encoding='utf-8') as f:
+    with open(path,'w',encoding='utf-8') as f:
         f.write('<!doctype html><html><head><meta charset="utf-8"><title>Synthetic Report</title>')
         f.write('<style>table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px}th{background:#f2f2f2;text-align:left}</style>')
         f.write('</head><body>')
         f.write('<h1>Synthetic Report</h1>')
-        # show base image and operating system (if available) before Trivy vulnerabilities
-        base_img = summary.get('base_image')
-        os_info = summary.get('operating_system')
-        if base_img or os_info:
-            f.write('<h2>Environment</h2>')
-            f.write('<table><tbody>')
-            if base_img:
-                f.write('<tr><th style="text-align:left;padding:8px">Base image</th><td style="padding:8px">{}</td></tr>'.format(html.escape(str(base_img))))
-            if os_info:
-                f.write('<tr><th style="text-align:left;padding:8px">Operating system</th><td style="padding:8px">{}</td></tr>'.format(html.escape(str(os_info))))
+
+        if summary.get('base_image') or summary.get('operating_system'):
+            f.write('<h2>Environment</h2><table><tbody>')
+            if summary.get('base_image'):
+                f.write(f'<tr><th>Base image</th><td>{html.escape(str(summary["base_image"]))}</td></tr>')
+            if summary.get('operating_system'):
+                f.write(f'<tr><th>Operating system</th><td>{html.escape(str(summary["operating_system"]))}</td></tr>')
             f.write('</tbody></table>')
 
-        # Counts as table (hide zero entries)
-        f.write('<h2>Counts</h2>')
-        f.write('<table><thead><tr><th style="text-align:left;padding:8px">Metric</th><th style="text-align:left;padding:8px">Count</th></tr></thead><tbody>')
-        for k in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO', 'UNKNOWN']:
-            c = counts.get(k, 0)
-            if c > 0:
-                f.write('<tr><td style="padding:8px">VULNERABILITIES - {}</td><td style="padding:8px">{}</td></tr>'.format(html.escape(str(k)), c))
-        # Sonar error-level issues count
-        sonar_err_count = summary.get('errors_count') or 0
-        if sonar_err_count:
-            f.write('<tr><td style="padding:8px">SOURCE CODE - ERRORS</td><td style="padding:8px">{}</td></tr>'.format(sonar_err_count))
+        f.write('<h2>Counts</h2><table><thead><tr><th>Metric</th><th>Count</th></tr></thead><tbody>')
+        for k in ['CRITICAL','HIGH','MEDIUM','LOW','INFO','UNKNOWN']:
+            c = counts.get(k,0)
+            if c>0:
+                f.write(f'<tr><td>VULNERABILITIES - {k}</td><td>{c}</td></tr>')
+        f.write(f'<tr><td>SOURCE CODE - SonarQube Errors</td><td>{len(sonar_errors)}</td></tr>')
+        f.write(f'<tr><td>SOURCE CODE - GitGuardian Errors</td><td>{len(gg_errors)}</td></tr>')
         f.write('</tbody></table>')
 
         f.write('<h2>Trivy Vulnerabilities</h2>')
         f.write(f'<p>Threshold: <b>{summary.get("threshold")}</b></p>')
-
         if vulns:
             f.write('<table><thead><tr><th>ID</th><th>Package</th><th>Severity</th><th>Description</th></tr></thead><tbody>')
             for v in vulns:
-                vid = (v.get('id') or '')
-                pkg = (v.get('package') or '')
-                sev = (v.get('severity') or '')
-                # preserve original line breaks and escape HTML
-                desc = html.escape(v.get('description') or '')
-                f.write('<tr>')
-                f.write('<td>{}</td>'.format(html.escape(str(vid))))
-                f.write('<td>{}</td>'.format(html.escape(str(pkg))))
-                f.write('<td>{}</td>'.format(html.escape(str(sev))))
-                f.write('<td><pre style="white-space:pre-wrap;margin:0;">{}</pre></td>'.format(desc))
-                f.write('</tr>')
+                f.write(f'<tr><td>{html.escape(str(v.get("id") or ""))}</td>'
+                        f'<td>{html.escape(str(v.get("package") or ""))}</td>'
+                        f'<td>{html.escape(str(v.get("severity") or ""))}</td>'
+                        f'<td><pre style="white-space:pre-wrap;margin:0;">{html.escape(v.get("description") or "")}</pre></td></tr>')
             f.write('</tbody></table>')
         else:
             f.write('<p>None</p>')
 
+        # Sonar Errors section
         f.write('<h2>SonarQube Errors</h2>')
-        if errors:
+        if sonar_errors:
             f.write('<table><thead><tr><th>Rule</th><th>File:Line</th><th>Message</th></tr></thead><tbody>')
-            for e in errors:
-                rule = (e.get('rule') or '')
-                file_line = (e.get('file_line') or '')
-                msg = html.escape(e.get('message') or '')
-                f.write('<tr>')
-                f.write('<td>{}</td>'.format(html.escape(str(rule))))
-                f.write('<td>{}</td>'.format(html.escape(str(file_line))))
-                f.write('<td><pre style="white-space:pre-wrap;margin:0;">{}</pre></td>'.format(msg))
-                f.write('</tr>')
+            for e in sonar_errors:
+                f.write(f'<tr><td>{html.escape(str(e.get("rule") or ""))}</td>'
+                        f'<td>{html.escape(str(e.get("file_line") or ""))}</td>'
+                        f'<td><pre style="white-space:pre-wrap;margin:0;">{html.escape(str(e.get("message") or ""))}</pre></td></tr>')
+            f.write('</tbody></table>')
+        else:
+            f.write('<p>None</p>')
+
+        # GitGuardian Errors section
+        f.write('<h2>GitGuardian Errors</h2>')
+        if gg_errors:
+            f.write('<table><thead><tr><th>Rule</th><th>File:Line</th><th>Message</th></tr></thead><tbody>')
+            for e in gg_errors:
+                f.write(f'<tr><td>{html.escape(str(e.get("rule") or ""))}</td>'
+                        f'<td>{html.escape(str(e.get("file_line") or ""))}</td>'
+                        f'<td><pre style="white-space:pre-wrap;margin:0;">{html.escape(str(e.get("message") or ""))}</pre></td></tr>')
             f.write('</tbody></table>')
         else:
             f.write('<p>None</p>')
 
         f.write('</body></html>')
 
-
+# --- CLI ---
 def main_cli():
     parser = argparse.ArgumentParser(description='Generate synthetic report from CycloneDX SBOM and SARIF')
-    parser.add_argument('--sbom', required=False, default=None, help='Path to sbom-report.cdx.json (optional)')
-    parser.add_argument('--sarif', required=True, help='Path to sonar-report.sarif')
-    parser.add_argument('--threshold', default='HIGH', help='Minimum severity to include (CRITICAL/HIGH/MEDIUM/LOW/INFO')
+    parser.add_argument('--sbom', required=False, help='Path to sbom-report.cdx.json (optional)')
+    parser.add_argument('--sonar-sarif', required=True, help='Path to sonar-report.sarif')
+    parser.add_argument('--gg-sarif', required=False, help='Path to gitguardian-report.sarif (optional)')
+    parser.add_argument('--threshold', default='HIGH', help='Minimum severity to include (CRITICAL/HIGH/MEDIUM/LOW/INFO)')
     parser.add_argument('--outdir', default='/output', help='Output directory')
     args = parser.parse_args()
 
@@ -257,81 +183,61 @@ def main_cli():
     thr = args.threshold.upper()
     thr_v = sev_val(thr)
 
-    # load SBOM if provided; SBOM is optional because some projects contain only source code
-    if args.sbom:
-        sbom = load_json(args.sbom)
-    else:
-        sbom = {}
+    sbom = load_json(args.sbom) if args.sbom else {}
+    if not args.sbom:
         print('No SBOM provided; skipping SBOM-based vulnerability extraction')
-    sarif = load_json(args.sarif)
 
-    # extract base image info from SBOM metadata.component if present
-    base_image = ''
+    vulns = extract_vulnerabilities(sbom, thr_v)
+    vulns = sorted(vulns, key=lambda v: (-sev_val(v.get('severity') or ''), v.get('package') or ''))
+
+    sonar_errors = extract_sarif_errors(load_json(args.sonar_sarif))
+    gg_errors = extract_sarif_errors(load_json(args.gg_sarif)) if args.gg_sarif else []
+
+    counts = {'CRITICAL':0,'HIGH':0,'MEDIUM':0,'LOW':0,'INFO':0,'UNKNOWN':0}
+    for v in vulns:
+        s = (v.get('severity') or 'UNKNOWN').upper()
+        counts[s] = counts.get(s,0)+1
+
+    # Extract base image and OS info from SBOM
     try:
-        meta = sbom.get('metadata', {}) or {}
-        comp = meta.get('component', {}) or {}
+        meta = sbom.get('metadata',{}) or {}
+        comp = meta.get('component',{}) or {}
         base_image = comp.get('name') or comp.get('purl') or comp.get('bom-ref') or ''
-        # check properties for aquasecurity tag (RepoTag/RepoDigest)
-        for p in comp.get('properties', []) or []:
-            n = p.get('name', '')
-            if n in ('aquasecurity:trivy:RepoTag', 'aquasecurity:trivy:RepoDigest'):
+        for p in comp.get('properties',[]) or []:
+            if p.get('name') in ('aquasecurity:trivy:RepoTag','aquasecurity:trivy:RepoDigest'):
                 base_image = p.get('value') or base_image
                 break
     except Exception:
         base_image = ''
-
-    # extract operating system from components (type == 'operating-system')
     os_info = ''
     try:
-        for c in sbom.get('components', []) or []:
-            if (c.get('type') or '').lower() == 'operating-system':
+        for c in sbom.get('components',[]) or []:
+            if (c.get('type') or '').lower()=='operating-system':
                 name = c.get('name') or ''
                 ver = c.get('version') or ''
-                if name and ver:
-                    os_info = f"{name} {ver}"
-                else:
-                    os_info = name or ver or ''
+                os_info = f"{name} {ver}" if name and ver else name or ver or ''
                 break
     except Exception:
         os_info = ''
-
-    vulns = extract_vulnerabilities(sbom, thr_v)
-    errors = extract_sarif_errors(sarif)
-
-    # Sort vulnerabilities from most critical to less critical
-    vulns = sorted(vulns, key=lambda v: (-sev_val((v.get('severity') or '')), (v.get('package') or '') ))
-
-    # Build per-severity counts so 'HIGH' threshold also shows CRITICAL + HIGH counts
-    counts = {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'LOW': 0, 'INFO': 0, 'UNKNOWN': 0}
-    for v in vulns:
-        s = (v.get('severity') or 'UNKNOWN').upper()
-        if s not in counts:
-            counts['UNKNOWN'] += 1
-        else:
-            counts[s] = counts.get(s, 0) + 1
 
     summary = {
         'threshold': thr,
         'counts': counts,
         'total_vulnerabilities': len(vulns),
-        'errors_count': len(errors),
+        'sonar_errors': sonar_errors,
+        'gg_errors': gg_errors,
         'base_image': base_image,
         'operating_system': os_info,
-        'vulnerabilities': vulns,
-        'errors': errors,
+        'vulnerabilities': vulns
     }
 
-    json_out = os.path.join(args.outdir, 'synthetic-report.json')
-    html_out = os.path.join(args.outdir, 'synthetic-report.html')
-
-    with open(json_out, 'w') as f:
-        json.dump(summary, f, indent=2)
-
+    json_out = os.path.join(args.outdir,'synthetic-report.json')
+    html_out = os.path.join(args.outdir,'synthetic-report.html')
+    with open(json_out,'w') as f:
+        json.dump(summary,f,indent=2)
     write_html(html_out, summary)
-
     print('Wrote:', json_out, html_out)
 
-
 if __name__ == '__main__':
-    # support running as a script in Dagger containers
     main_cli()
+
