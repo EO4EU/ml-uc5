@@ -34,18 +34,22 @@ class Uc5:
     @function
     async def build(
         self,
+        registry: Annotated[str, Doc("Registry address")],
         bucket: Annotated[str, Doc("S3 Bucket")],
         endpoint: Annotated[str, Doc("S3 Endpoint")],
         access: Annotated[dagger.Secret, Doc("S3 Access Key")],
         secret: Annotated[dagger.Secret, Doc("S3 Secret Key")],
         repo: Annotated[str, Doc("Registry repo")],
         tag: Annotated[str, Doc("Image tag")],
+        username: Annotated[str, Doc("Registry username")],
+        password: Annotated[dagger.Secret, Doc("Registry password")],
         wkd: Annotated[
             dagger.Directory,
             Doc("Location of directory containing Dagger files"),
         ],
     ) -> str:
         """Build and publish image from existing Dockerfile"""
+        auth_blob: dagger.Secret = await self.encode(registry, username, password)
         return await (
             dag.container()
             .from_("gcr.io/kaniko-project/executor:debug")
@@ -53,14 +57,15 @@ class Uc5:
                 "registry.local",
                 self.registry(bucket, endpoint, access, secret)
             )            
-            .with_mounted_directory("/workspace", wkd)
+            .with_mounted_directory("/kaniko/.docker", wkd)
+            .with_mounted_secret("/kaniko/.docker/config.json", auth_blob)
             .with_exec(
                 [
                     "/kaniko/executor",
                     "--context", 
-                    "dir:///workspace/",
+                    "dir:///kaniko/.docker/",
                     "--dockerfile",
-                    "/workspace/Dockerfile",
+                    "/kaniko/.docker/Dockerfile",
                     "--insecure",
                     "--destination",
                     f"registry.local/{repo}:{tag}"
