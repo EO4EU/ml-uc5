@@ -28,7 +28,10 @@ WORKDIR /app
 
 COPY --from=build /app /app
 COPY --from=build /usr/local /usr/local
-COPY --from=build /usr/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu/
+COPY --from=build /usr/lib /usr/lib/
+COPY --from=build \
+  /usr/local/lib/python3.13/site-packages \
+  /opt/python/lib/python3.13/site-packages
 
 EXPOSE 8080
 USER 1000
